@@ -51,7 +51,8 @@ def verify_template_for_log_with_first_token(log, template):
         return False
     if "<*>" not in tok_temp[-1] and tok_log[-1] != tok_temp[-1]:
         return False
-
+    # debug
+    #print('so far so good')
     return verify_template_for_log_regex(log, template)
 
 

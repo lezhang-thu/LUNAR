@@ -1,3 +1,4 @@
+import re
 import time
 from openai import OpenAI
 from LUNAR.llm_module.response_extractor.extract_batch import BatchExtract
@@ -7,7 +8,14 @@ from LUNAR.llm_module.variable_examples import VARIABLE_EXAMPLES_SETTING, json2p
 
 
 class InferLLMGrouping:
-    def __init__(self, model, api_key, base_url, prefix=None, dataset="Apache", prompt="VarExam"):
+
+    def __init__(self,
+                 model,
+                 api_key,
+                 base_url,
+                 prefix=None,
+                 dataset="Apache",
+                 prompt="VarExam"):
         self.model = model
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.prefix = prefix
@@ -19,10 +27,11 @@ class InferLLMGrouping:
         self.usages = []
         self.response = ""
 
-        self.system_prompt = ("You are a log parsing assistant for the cloud reliability team, "
-                              "skilled in identifying dynamic values of variables/parameters in logs. "
-                              "The value is an actual manifestation of the variables in original logging statements.\n"
-                              )
+        self.system_prompt = (
+            "You are a log parsing assistant for the cloud reliability team, "
+            "skilled in identifying dynamic values of variables/parameters in logs. "
+            "The value is an actual manifestation of the variables in original logging statements.\n"
+        )
         self.prompt_base_requirements = (
             "# Basic Requirements:\n"
             "- I will provide multiple log messages, each delimited by backticks.\n"
@@ -54,7 +63,8 @@ class InferLLMGrouping:
             self.prompt_variable_advice = ""
 
         if "NoPE" not in self.prompt:
-            self.prompt_variable_example_prompt = self.construct_variable_example()
+            self.prompt_variable_example_prompt = self.construct_variable_example(
+            )
             print(self.prompt_variable_example_prompt)
         else:
             self.prompt_variable_example_prompt = ""
@@ -63,8 +73,7 @@ class InferLLMGrouping:
             self.prompt_output_constraint = (
                 "# Output Constraints: \n"
                 "- For each log line, output corresponding log template starting with LogTemplate[idx], no other line break. \n"
-                "- Each input log's template is delimited by backticks. \n"
-            )
+                "- Each input log's template is delimited by backticks. \n")
         else:
             self.prompt_output_constraint = ""
 
@@ -85,33 +94,66 @@ class InferLLMGrouping:
 
         return prompt
 
-    def get_prompt_direct(self, logs, exemplars=None):
+    def get_prompt_direct(self, logs, exemplars=None, prev_templates=None):
         # print(instruction)
         messages = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": self.instruction},
-            {"role": "assistant", "content": "OK, I'm ready to help."},
+            {
+                "role": "system",
+                "content": self.system_prompt
+            },
+            {
+                "role": "user",
+                "content": self.instruction
+            },
+            {
+                "role": "assistant",
+                "content": "OK, I'm ready to help."
+            },
         ]
         if exemplars is not None:
             examplar_logs = [exemplar['query'] for exemplar in exemplars]
             examplar_templates = [exemplar['answer'] for exemplar in exemplars]
-            query_template = '\n'.join([f"Log[{i+1}]: " + "`{}`" for i in range(len(exemplars))])
-            answer_template = '\n'.join([f"LogTemplate[{i+1}]: " + "`{}`" for i in range(len(exemplars))])
-            messages.append({"role": "user", "content": query_template.format(*examplar_logs)})
-            messages.append({"role": "assistant", "content": answer_template.format(*examplar_templates)})
+            query_template = '\n'.join(
+                [f"Log[{i+1}]: " + "`{}`" for i in range(len(exemplars))])
+            answer_template = '\n'.join([
+                f"LogTemplate[{i+1}]: " + "`{}`" for i in range(len(exemplars))
+            ])
+            messages.append({
+                "role": "user",
+                "content": query_template.format(*examplar_logs)
+            })
+            messages.append({
+                "role":
+                "assistant",
+                "content":
+                answer_template.format(*examplar_templates)
+            })
 
-        query_template = '\n'.join([f"Log[{i+1}]: "+"`{}`" for i in range(len(logs))])
+        if len(prev_templates) > 0:
+            wrong_alert = ''
+            wrong_alert += (
+                'Before parsing, we list several *faulty* templates:')
+            for t_x in prev_templates:
+                wrong_alert += '\n`{}`'.format(t_x)
+            messages.append({"role": "user", "content": wrong_alert})
+            print('wrong_alert:\n{}'.format(wrong_alert))
+            messages.append({"role": "assistant", "content": "OK."})
+
+        query_template = '\n'.join(
+            [f"Log[{i+1}]: " + "`{}`" for i in range(len(logs))])
         query = query_template.format(*logs)
         messages.append({"role": "user", "content": query})
         # self.messages = messages
         print("\t============  Query  ====================")
-        print("\n".join(["\t"+i for i in query.split('\n')]))
+        print("\n".join(["\t" + i for i in query.split('\n')]))
         return messages
 
-    def parsing_log_templates(self, logs, exemplars, gts=[], reparse=False):
+    def parsing_log_templates(self, logs, exemplars, gts=[], reparse=None):
         # query llm for response
-        messages = self.get_prompt_direct(logs, exemplars=exemplars)
-        temperature = 0.7 if reparse else 0.0
+        messages = self.get_prompt_direct(logs,
+                                          exemplars=exemplars,
+                                          prev_templates=reparse)
+        temperature = 0.7 if len(reparse) > 0 else 0.0
         time1 = time.time()
         _ = self.get_response_fallback(messages, temperature=temperature)
         query_time = time.time() - time1
@@ -121,7 +163,8 @@ class InferLLMGrouping:
         print(self.response)
         if len(gts) > 0:
             print("\t============ Target ====================")
-            answer_template = '\n'.join([f"\tGT Template[{i+1}]: " + "`{}`" for i in range(len(gts))])
+            answer_template = '\n'.join(
+                [f"\tGT Template[{i+1}]: " + "`{}`" for i in range(len(gts))])
             print(answer_template.format(*gts))
         # print("================================")
 
@@ -135,7 +178,61 @@ class InferLLMGrouping:
         # aggregate templates
         best_template = aggregate_by_majority(logs, templates)
 
-        return best_template, query_time
+        return best_template, query_time, gpt_templates[0]['template']
+
+    def improve_template(self, logs, template):
+        system_prompt = (
+            "You are an assistant designed to refine a given template based on a set of logs. "
+            "Your goal is to optimize the template so that it matches as many logs as possible."
+        )
+
+        instruction = (
+            "The symbol <*> in the given template serves as a wildcard representing any sequence of characters.\n"
+            "At present, the template fails to match any of the provided logs.\n"
+            "Your task is to refine the template so that it can match as many logs as possible.\n"
+            "You should only use <*> for matching characters. Other non-<*>characters should exactly match!\n"
+            "Please present your result in the following format:\n"
+            "ImprovedTemplate: `the updated template`\n\n"
+            "The Python code used to check whether a template matches a log is shown below:\n"
+            "```python\n"
+            "import re\n"
+            "\n"
+            "def match_log_pattern(template: str, log: str) -> bool:\n"
+            "    # Escape regex special characters\n"
+            "    regex = re.escape(template)\n"
+            "    # Replace '<\\*>' (only * is escaped by re.escape) with wildcard\n"
+            "    regex = regex.replace(r'<\\*>', '.*?')\n"
+            "    # Add anchors\n"
+            "    regex = '^' + regex + '$'\n"
+            "    return re.match(regex, log) is not None"
+            "```\n")
+
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt,
+            },
+            {
+                "role": "user",
+                "content": instruction,
+            },
+            {
+                "role": "assistant",
+                "content": "OK, I'm ready to help.",
+            },
+        ]
+
+        query_template = '\n'.join(
+            [f"Log[{i+1}]: " + "`{}`" for i in range(len(logs))])
+        query = query_template.format(*logs)
+        query += '\nTemplate: `{}`'.format(template)
+        messages.append({"role": "user", "content": query})
+        _ = self.get_response_fallback(messages, temperature=0)
+        print('#' * 30)
+        print('Improving...')
+        print(self.response)
+        t = re.search(r"ImprovedTemplate:\s*`([^`]*)`", self.response)
+        return t.group(1)
 
     def get_response(self, messages, temperature=0.0):
         answers = self.client.chat.completions.create(
@@ -146,8 +243,14 @@ class InferLLMGrouping:
             n=1,
             stop=None,
         )
-        self.usages.append({"query": answers.usage.prompt_tokens, "response": answers.usage.completion_tokens})
-        self.response = [response.message.content for response in answers.choices if response.finish_reason != 'length'][0]
+        self.usages.append({
+            "query": answers.usage.prompt_tokens,
+            "response": answers.usage.completion_tokens
+        })
+        self.response = [
+            response.message.content for response in answers.choices
+            if response.finish_reason != 'length'
+        ][0]
         return self.response
 
     def get_response_fallback(self, messages, temperature=0.0):
@@ -162,7 +265,9 @@ class InferLLMGrouping:
                     n=1,
                     stop=None,
                 )
-                self.response = [response.message.content for response in answers.choices][0]
+                self.response = [
+                    response.message.content for response in answers.choices
+                ][0]
                 return self.response
 
             except Exception as e:
@@ -199,7 +304,10 @@ class InferLLMGrouping:
         # remove null template
         templates = [d for d in templates if d.get('idx') != -1]
         if len(templates) == 0:
-            return [{'idx': i+1, 'template': log} for i, log in enumerate(logs)]
+            return [{
+                'idx': i + 1,
+                'template': log
+            } for i, log in enumerate(logs)]
 
         new_templates = []
         existing_idx = [d['idx'] for d in templates]
@@ -207,11 +315,18 @@ class InferLLMGrouping:
         template_idx = -1
         for idx, _log in enumerate(logs):
             if idx + 1 not in existing_idx:
-                new_templates.append({'idx': idx+1, 'template': templates[0]['template']})
+                new_templates.append({
+                    'idx': idx + 1,
+                    'template': templates[0]['template']
+                })
             else:
                 template_idx += 1
-                new_templates.append({'idx': idx+1, 'template': templates[template_idx]['template']})
+                new_templates.append({
+                    'idx':
+                    idx + 1,
+                    'template':
+                    templates[template_idx]['template']
+                })
         new_templates = sorted(new_templates, key=lambda x: x['idx'])
 
         return new_templates
-
