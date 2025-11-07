@@ -35,10 +35,10 @@ class InferLLMGrouping:
         self.prompt_base_requirements = (
             "# Basic Requirements:\n"
             "- I will provide multiple log messages, each delimited by backticks.\n"
-            "- You must identify and extract all dynamic variables in each log with {placeholder} and output static log templates.\n"
+            "- You must identify and extract all dynamic variables (some variables are identical across logs, but they are still variables. Please see variable types below) in each log with {placeholder} and output static log templates.\n"
             "- Identify the semantics of variables and compare the differences between logs to identify potential dynamic variables if they belong to the same template.\n"
             "- Preserve any dynamic variables already marked by `<*>` or `{placeholder}`.\n"
-            "- Pay attention to the slightly different strings among logs, which have high possibility to be dynamic variable.\n"
+            #"- Pay attention to the slightly different strings among logs, which have high possibility to be dynamic variable.\n"
             "- Do not convert non-variables, especially when only one log is presented in the group.\n"
         )
         if "SimpleRequirements" in self.prompt:
@@ -53,8 +53,9 @@ class InferLLMGrouping:
         if "NoAdvice" not in self.prompt:
             self.prompt_variable_advice = (
                 "# Advices on variables:\n"
-                "- Common variables: numbers, IP addresses, URLs, file paths, directories, hex values, usernames, etc.\n"
+                "- Common variables: numbers, IP addresses, **URLs**, file paths, directories, hex values, usernames, etc.\n"
                 "- Full directory with filename, complex url with server address or domain should be recognize as one variable.\n"
+                "- All of the types listed above are variables, even if they are identical across multiple logs. **Please take the requirements seriously! If the substring (surrounded by whitespaces) falls into these types, mark them as {variable_type}, where variable_type is the corresponding type!**\n"
                 "# Advices on non-variables:\n"
                 "- Error messages/types, java exceptions, detailed commands or interrupted messages are NOT dynamic variables as they contain important information.\n"
                 "- Specific actions or status words are NOT dynamic variables.\n"
@@ -82,6 +83,9 @@ class InferLLMGrouping:
         self.instruction += self.prompt_variable_advice
         self.instruction += self.prompt_variable_example_prompt
         self.instruction += self.prompt_output_constraint
+        self.instruction += (
+            "Hint: For extracting the template, the first step is to replace the typical variable strings within the logs by {variable_type} before anything.\n"
+        )
 
         print("======================== Prompt ========================")
         print(self.prompt)
@@ -180,33 +184,130 @@ class InferLLMGrouping:
 
         return best_template, query_time, gpt_templates[0]['template']
 
+    def match_log_pattern(self, template: str, log: str) -> bool:
+        """
+        Return True if the log matches the template pattern where
+        '<*>' acts as a wildcard for any sequence of characters.
+        If False, print the first place where template and log differ.
+        """
+        # Escape regex special characters
+        regex = re.escape(template)
+        # Replace '<\*>' (only * is escaped by re.escape) with wildcard
+        regex = regex.replace(r'<\*>', '.*?')
+        # Add anchors
+        regex = '^' + regex + '$'
+        match = re.match(regex, log)
+        message = ""
+        if match is not None:
+            return True, message, regex
+
+        # Find where it fails
+        # Split template into parts: literals and wildcards
+        parts = re.split(r'<\*>', template)
+
+        pos = 0  # Current position in log
+        for i, part in enumerate(parts):
+            next_pos = log.find(part, pos)
+            if i == 0 and next_pos != 0:
+                message = (f"Mismatch: Expected log to start with '{part}'\n"
+                           f"Log starts with: '{log[:min(50, len(log))]}...'")
+                return False, message, regex
+            elif next_pos == -1:
+                message = (
+                    f"Mismatch: Cannot find expected text '{part}' in log after position {pos}\n"
+                    #f"Log before position {pos}: '{log[:pos]}' (which are successfully matched)\n"
+                    f"Log from position {pos}: '{log[pos:min(pos+50, len(log))]}...'"
+                )
+                return False, message, regex
+            pos = next_pos + len(part)
+        # Check if there's extra content at the end
+        if pos < len(log):
+            message = (
+                f"Mismatch: Extra content at end of log\n"
+                f"Expected end at position {pos}, but log continues: '{log[pos:]}'"
+            )
+            return False, message, regex
+        return False, message, regex
+
     def improve_template(self, logs, template):
         system_prompt = (
             "You are an assistant designed to refine a given template based on a set of logs. "
             "Your goal is to optimize the template so that it matches as many logs as possible."
         )
-
+        code = (
+            "    def match_log_pattern(self, template: str, log: str) -> bool:\n"
+            "        \"\"\"\n"
+            "        Return True if the log matches the template pattern where\n"
+            "        '<*>' acts as a wildcard for any sequence of characters.\n"
+            "        If False, print the first place where template and log differ.\n"
+            "        \"\"\"\n"
+            "        # Escape regex special characters\n"
+            "        regex = re.escape(template)\n"
+            "        # Replace '<\\*>' (only * is escaped by re.escape) with wildcard\n"
+            "        regex = regex.replace(r'<\\*>', '.*?')\n"
+            "        # Add anchors\n"
+            "        regex = '^' + regex + '$'\n"
+            "        match = re.match(regex, log)\n"
+            "        message = \"\"\n"
+            "        if match is not None:\n"
+            "            return True, message, regex\n"
+            "            \n"
+            "        # Find where it fails\n"
+            "        # Split template into parts: literals and wildcards\n"
+            "        parts = re.split(r'<\\*>', template)\n"
+            "        \n"
+            "        pos = 0  # Current position in log\n"
+            "        for i, part in enumerate(parts):\n"
+            "            next_pos = log.find(part, pos)\n"
+            "            if i == 0 and next_pos != 0:\n"
+            "                message = (f\"Mismatch: Expected log to start with '{part}'\\n\"\n"
+            "                           f\"Log starts with: '{log[:min(50, len(log))]}...'\")\n"
+            "                return False, message, regex\n"
+            "            elif next_pos == -1:\n"
+            "                message = (\n"
+            "                    f\"Mismatch: Cannot find expected text '{part}' in log after position {pos}\\n\"\n"
+            #"                    f\"Log before position {pos}: '{log[:pos]}' (which are successfully matched)\\n\"\n"
+            "                    f\"Log from position {pos}: '{log[pos:min(pos+50, len(log))]}...'\"\n"
+            "                )\n"
+            "                return False, message, regex\n"
+            "            pos = next_pos + len(part)\n"
+            "        # Check if there's extra content at the end\n"
+            "        if pos < len(log):\n"
+            "            message = (\n"
+            "                f\"Mismatch: Extra content at end of log\\n\"\n"
+            "                f\"Expected end at position {pos}, but log continues: '{log[pos:]}'\"\n"
+            "            )\n"
+            "            return False, message, regex\n"
+            "        return False, message, regex\n")
+        t_x = self.match_log_pattern(template, logs[0])
+        error_message = t_x[1]
+        regex = t_x[2]
         instruction = (
-            "The symbol <*> in the given template serves as a wildcard representing any sequence of characters.\n"
-            "At present, the template fails to match any of the provided logs.\n"
-            "Your task is to refine the template so that it can match as many logs as possible.\n"
-            "You should only use <*> for matching characters. Other non-<*>characters should exactly match!\n"
-            "Please present your result in the following format:\n"
-            "ImprovedTemplate: `the updated template`\n\n"
-            "The Python code used to check whether a template matches a log is shown below:\n"
-            "```python\n"
-            "import re\n"
-            "\n"
-            "def match_log_pattern(template: str, log: str) -> bool:\n"
-            "    # Escape regex special characters\n"
-            "    regex = re.escape(template)\n"
-            "    # Replace '<\\*>' (only * is escaped by re.escape) with wildcard\n"
-            "    regex = regex.replace(r'<\\*>', '.*?')\n"
-            "    # Add anchors\n"
-            "    regex = '^' + regex + '$'\n"
-            "    return re.match(regex, log) is not None"
-            "```\n")
-
+            "Symbols <*> in the given template serve as wildcards representing a contiguous sequence of characters.\n"
+            "You should only use <*> for matching any substring of the log text.\n"
+            "Other non-<*>characters between the template and the log should exactly correspond to each other.\n"
+            #"The Python code used to check whether a template matches a log is shown below:\n"
+            #"```python\n"
+            #"import re\n"
+            #"\n"
+            #"def match_log_pattern(template: str, log: str) -> bool:\n"
+            #"    # Escape regex special characters\n"
+            #"    regex = re.escape(template)\n"
+            #"    # Replace '<\\*>' (only * is escaped by re.escape) with wildcard\n"
+            #"    regex = regex.replace(r'<\\*>', '.*?')\n"
+            #"    # Add anchors\n"
+            #"    regex = '^' + regex + '$'\n"
+            #"    return re.match(regex, log) is not None"
+            #"```\n"
+            "At present, the given template fails to match any of the provided logs.\n"
+            f"The code that performs the matching check is::\n{code}\n"
+            #f"The translated regular expression corresponding to the template is:\n{regex}\n"
+            f"The error message for the template matching the given Log[1] is:\n{error_message}\n"
+            "Please present your updated template in the following format:\n"
+            "ImprovedTemplate: `the updated template`\n"
+            #"You must modify the template; submitting it unchanged is not allowed."
+        )
+        print('error_message:\n{}'.format(error_message))
         messages = [
             {
                 "role": "system",
@@ -227,7 +328,7 @@ class InferLLMGrouping:
         query = query_template.format(*logs)
         query += '\nTemplate: `{}`'.format(template)
         messages.append({"role": "user", "content": query})
-        _ = self.get_response_fallback(messages, temperature=0)
+        _ = self.get_response_fallback(messages, temperature=.1)
         print('#' * 30)
         print('Improving...')
         print(self.response)
@@ -285,6 +386,9 @@ class InferLLMGrouping:
 
         # replace null template with previous template
         gpt_templates = self.make_up_template(logs, gpt_templates)
+        # debug
+        #print('gpt_templates:\n{}'.format(gpt_templates))
+        #exit(0)
 
         print("\t============ PostProcess ====================")
         for temp in gpt_templates:

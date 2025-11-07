@@ -268,6 +268,9 @@ class LUNARParser(BaseParser):
             ]
         else:
             logs_to_query_regex = logs_to_query
+        # debug
+        logs_to_query_regex = [log.replace("`", "") for log in logs_to_query_regex]
+        logs_to_query_regex = [log.replace('"', '') for log in logs_to_query_regex]
 
         # Query LLM
         examplars = self.get_examplars()

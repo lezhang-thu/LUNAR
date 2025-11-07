@@ -10,6 +10,8 @@ VARIABLE_EXAMPLES_SETTING = {
             "api": ["com.huawei.health.manager.Service@32a6bf8"],
             "time": ["2017-07-02 15:46:40.536"],
             "ip_or_url": ["192.168.0.1:8008"],
+            # debug
+            #"url": ["https://www.google.com.hk/"]
         }
     }
 }

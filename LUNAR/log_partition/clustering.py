@@ -346,7 +346,7 @@ class BaseClustering:
         max_cluster_id = max(self.clusters,
                              key=lambda k: len(self.clusters[k]))
         # debug
-        max_cluster_id = 146
+        #max_cluster_id = 18 
 
         self.current_logs_bucket_id = max_cluster_id
         self.current_logs_bucket = self.clusters[self.current_logs_bucket_id]
@@ -403,6 +403,7 @@ class BaseClustering:
                     remove_same=True,
                 )
             sampled = candidate_logs[:self.sample_size]
+            #sampled = candidate_logs[:1]
             return cluster_id, sampled
 
     def sample_by_lcu_sampling_parallel(self, input_clusters, dedup=True):

@@ -128,10 +128,17 @@ def correct_single_template(template, user_strings=None):
         template = template.replace("<*><*>", "<*>")
 
     # newly added by me
-    while " <*>. " in template:
-        template = template.replace(" <*>. ", " <*> ")
-    while " <*>, " in template:
-        template = template.replace(" <*>, ", " <*> ")
+    # debug
+    if False:
+        while " <*>. " in template:
+            template = template.replace(" <*>. ", " <*> ")
+        while " <*>, " in template:
+            template = template.replace(" <*>, ", " <*> ")
+    # debug
+    # lezhang.thu
+    while "( <*>, <*>)" in template:
+        template = template.replace("( <*>, <*>)", "(<*>, <*>)")
+
     while "<*>+<*>" in template:
         template = template.replace("<*>+<*>", "<*>")
     while "<*>##<*>" in template:
@@ -164,14 +171,17 @@ def correct_single_template(template, user_strings=None):
 
 
 def post_process_template(template, regs_common):
-    # template = re.sub(r'\{(\w+)\}', "<*>", template)
-    # print("Be:", template)
-    template = re.sub(r'\{\{(.+?)\}\}', "<*>", template)
-    # print("0:", template)
-    template = re.sub(r'\{(.*?)\}', "<*>", template)
-    # print("1:", template)
-    for reg in regs_common:
-        template = reg.sub("<*>", template)
+    if False:
+        # template = re.sub(r'\{(\w+)\}', "<*>", template)
+        # print("Be:", template)
+        template = re.sub(r'\{\{(.+?)\}\}', "<*>", template)
+        # print("0:", template)
+        template = re.sub(r'\{(.*?)\}', "<*>", template)
+        # print("1:", template)
+        for reg in regs_common:
+            template = reg.sub("<*>", template)
+    else:
+        template = re.sub(r'\{.*?\}', '<*>', template)
     # print("2:", template)
     template = correct_single_template(template)
     # print("3:", template)
