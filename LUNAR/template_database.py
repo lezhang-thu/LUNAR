@@ -295,6 +295,8 @@ def greedy_merge_two_vars_both_side(str1, str2):
     placeholder = "<*>"
     if str1 == "<*>" or str2 == "<*>":
         return "<*>"
+    # debug
+    else: return False
     if not judge_var_token(str1, str2):
         return False
 

@@ -257,7 +257,7 @@ class LUNARParser(BaseParser):
         self.save_results(logName)
 
     def parse_one_iter(self, reparse):
-        cluster_id, logs_to_query = self.clusters.sample_for_llm()
+        cluster_id, logs_to_query, proposal_template = self.clusters.sample_for_llm()
         print("cluster_id: {}\nlogs_to_query: {}".format(
             cluster_id, logs_to_query))
         print('self.add_regex: {}'.format(self.add_regex))
@@ -275,7 +275,7 @@ class LUNARParser(BaseParser):
         # Query LLM
         examplars = self.get_examplars()
         template, query_time, wrong_template = self.llm.parsing_log_templates(
-            logs_to_query_regex, examplars, reparse=reparse)
+            logs_to_query_regex, examplars, reparse=reparse, proposal=proposal_template)
         self.wait_query_time += query_time
         self.query_count += 1
         print("\t============ Aggregate ====================")

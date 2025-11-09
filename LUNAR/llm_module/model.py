@@ -59,6 +59,7 @@ class InferLLMGrouping:
                 "# Advices on non-variables:\n"
                 "- Error messages/types, java exceptions, detailed commands or interrupted messages are NOT dynamic variables as they contain important information.\n"
                 "- Specific actions or status words are NOT dynamic variables.\n"
+                #"- Avoid labeling multiple words together as one variable.\n"
             )
         else:
             self.prompt_variable_advice = ""
@@ -82,9 +83,18 @@ class InferLLMGrouping:
         self.instruction += self.prompt_base_requirements
         self.instruction += self.prompt_variable_advice
         self.instruction += self.prompt_variable_example_prompt
+        # lezhang.thu - start
+        self.instruction += (
+            "# NON-Variable Examples (these types of strings should NOT be replaced by {variaible_type}): \n"
+            "- `java.io.FileNotFoundException`\n"
+            #"- `worker.jni:onShutdown` -> `{configuration_reference}`\n"
+            #"- `HTTP/1.1` `HTTP/1.0` -> `{protocol_and_version}`\n"
+        )
+        # lezhang.thu - end
         self.instruction += self.prompt_output_constraint
         self.instruction += (
-            "Hint: For extracting the template, the first step is to replace the typical variable strings within the logs by {variable_type} before anything.\n"
+            #"AVOID labeling MULTIPLE CONSECUTIVE words TOGETHER as a SINGLE variable (e.g., error/interruption messages consisting of multiple words).\n"
+            "Hint: For extracting the template, the first step is to replace the typical variable strings within the logs by {variable_type} before anything."
         )
 
         print("======================== Prompt ========================")
@@ -98,7 +108,11 @@ class InferLLMGrouping:
 
         return prompt
 
-    def get_prompt_direct(self, logs, exemplars=None, prev_templates=None):
+    def get_prompt_direct(self,
+                          logs,
+                          exemplars=None,
+                          prev_templates=None,
+                          proposal=None):
         # print(instruction)
         messages = [
             {
@@ -146,17 +160,30 @@ class InferLLMGrouping:
         query_template = '\n'.join(
             [f"Log[{i+1}]: " + "`{}`" for i in range(len(logs))])
         query = query_template.format(*logs)
+        if proposal:
+            brain_proposal = (
+                "\nLastly, the following sequence of words is likely derived from the template.\n"
+                f"{proposal}")
+                #"Try to locate the most common words across logs, and keep them as part of the template.")
+            query += brain_proposal
         messages.append({"role": "user", "content": query})
         # self.messages = messages
         print("\t============  Query  ====================")
         print("\n".join(["\t" + i for i in query.split('\n')]))
         return messages
 
-    def parsing_log_templates(self, logs, exemplars, gts=[], reparse=None):
+    def parsing_log_templates(self,
+                              logs,
+                              exemplars,
+                              gts=[],
+                              reparse=None,
+                              proposal=None):
         # query llm for response
         messages = self.get_prompt_direct(logs,
                                           exemplars=exemplars,
-                                          prev_templates=reparse)
+                                          prev_templates=reparse,
+                                          proposal=proposal)
+
         temperature = 0.7 if len(reparse) > 0 else 0.0
         time1 = time.time()
         _ = self.get_response_fallback(messages, temperature=temperature)

@@ -3,10 +3,9 @@ import string
 import pandas as pd
 import regex as re
 
-param_regex = [
-    r'{([ :_#.\-\w\d]+)}',
-    r'{}'
-]
+param_regex = [r'{([ :_#.\-\w\d]+)}', r'{}']
+
+
 def correct_single_template(template, user_strings=None):
     """Apply all rules to process a template.
 
@@ -25,16 +24,15 @@ def correct_single_template(template, user_strings=None):
     # boolean = {}
     # default_strings = {}
     path_delimiters = {  # reduced set of delimiters for tokenizing for checking the path-like strings
-        r'\s', r'\,', r'\!', r'\;', r'\:',
-        r'\=', r'\|', r'\"', r'\'',
-        r'\[', r'\]', r'\(', r'\)', r'\{', r'\}'
+        r'\s', r'\,', r'\!', r'\;', r'\:', r'\=', r'\|', r'\"', r'\'', r'\[',
+        r'\]', r'\(', r'\)', r'\{', r'\}'
     }
     token_delimiters = path_delimiters.union({  # all delimiters for tokenizing the remaining rules
         r'\.', r'\-', r'\+', r'\@', r'\#', r'\$', r'\%', r'\&',
     })
 
     # if user_strings:
-        # default_strings = default_strings.union(user_strings)
+    # default_strings = default_strings.union(user_strings)
 
     # apply DS
     template = template.strip()
@@ -44,19 +42,20 @@ def correct_single_template(template, user_strings=None):
     # p_tokens = re.split('(' + '|'.join(path_delimiters) + ')', template)
     # new_p_tokens = []
     # for p_token in p_tokens:
-        # if re.match(r'^(\/[^\/]+)+$', p_token):
-            # p_token = '<*>'
-        # new_p_tokens.append(p_token)
+    # if re.match(r'^(\/[^\/]+)+$', p_token):
+    # p_token = '<*>'
+    # new_p_tokens.append(p_token)
     # template = ''.join(new_p_tokens)
 
     # tokenize for the remaining rules
-    tokens = re.split('(' + '|'.join(token_delimiters) + ')', template)  # tokenizing while keeping delimiters
+    tokens = re.split('(' + '|'.join(token_delimiters) + ')',
+                      template)  # tokenizing while keeping delimiters
     new_tokens = []
     for token in tokens:
         # apply BL, US
         # for to_replace in boolean.union(default_strings):
-            # if token.lower() == to_replace.lower():
-                # token = '<*>'
+        # if token.lower() == to_replace.lower():
+        # token = '<*>'
 
         # apply DG
         if re.match(r'^\d+$', token):
@@ -70,13 +69,12 @@ def correct_single_template(template, user_strings=None):
             token = token.replace("0x<*>", "<*>")
 
         # apply WV
-        if re.match(r'^[^\s\/]*<\*>[^\s\/]*$', token):
+        if re.match(r'^[^\s\/]+<\*>[^\s\/]+$', token):
             if token != '<*>/<*>':  # need to check this because `/` is not a deliminator
                 token = '<*>'
 
         # collect the result
         new_tokens.append(token)
-
     # make the template using new_tokens
     template = ''.join(new_tokens)
 
@@ -181,7 +179,7 @@ def post_process_template(template, regs_common):
         for reg in regs_common:
             template = reg.sub("<*>", template)
     else:
-        template = re.sub(r'\{.*?\}', '<*>', template)
+        template = re.sub(r'\{[A-Za-z0-9_-]+\}', '<*>', template) 
     # print("2:", template)
     template = correct_single_template(template)
     # print("3:", template)

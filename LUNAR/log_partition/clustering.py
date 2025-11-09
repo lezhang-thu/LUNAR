@@ -1,4 +1,5 @@
 import re
+import math
 import random
 import itertools
 import pandas as pd
@@ -9,6 +10,8 @@ from LUNAR.utils import verify_template_for_log_regex, verify_template_for_log_w
 from LUNAR.utils import preprocess_log_for_query
 from LUNAR.log_partition.text_distance import similarity_jaccard_words, calculate_same_one_to_many, calculate_jaccard_one_to_many, calculate_jaccard_one_to_many_mask
 from LUNAR.log_partition.text_distance import calculate_jaccard_and_diff_self_all_comp
+
+#CHECK_CLUSTERS =[161, ]
 
 
 class BaseClustering:
@@ -346,10 +349,17 @@ class BaseClustering:
         max_cluster_id = max(self.clusters,
                              key=lambda k: len(self.clusters[k]))
         # debug
-        #max_cluster_id = 18 
+        if True:
+            max_cluster_id = 238 
+            print(self.clusters[max_cluster_id]['_feature'].iloc[0])
+            print(self.clusters[max_cluster_id].drop_duplicates(
+                subset='Content', keep='last'))
+            print("self.pad_query: {}".format(self.pad_query))
+            #exit(0)
 
         self.current_logs_bucket_id = max_cluster_id
         self.current_logs_bucket = self.clusters[self.current_logs_bucket_id]
+        proposal_template = self.current_logs_bucket["_feature"].iloc[0]
         print(
             f"Sample {self.sample_size} from current logs bucket: ID: {self.current_logs_bucket_id}, Len: {self.current_logs_bucket['length'].iloc[0]}, Bucket Size: {len(self.current_logs_bucket)}, Total Buckets: {len(self.clusters)}",
         )
@@ -359,52 +369,61 @@ class BaseClustering:
 
         if len(self.current_logs_bucket) == 0:
             print('A')
+            assert False, "The branch should NOT be entered!"
             self.clusters.pop(self.current_logs_bucket_id)
             cluster_id, sampled = self.sample_by_lcu_sampling(dedup=dedup)
-            return cluster_id, sampled
+            return cluster_id, sampled, proposal_template
         elif len(self.current_logs_bucket) == 1:
             print('B')
             logs = self.current_logs_bucket["Content"].tolist()
             cluster_id = self.current_logs_bucket["cid2"].iloc[0]
-            return cluster_id, sampling_from_list(logs,
-                                                  1,
-                                                  padding=self.pad_query)
+            return cluster_id, logs, None
         else:
             print('C')
-            anchor_log, candidate_logs = self.anchor_log_selection(
-                self.current_logs_bucket["Content"].tolist(), method="first")
+            candidate_logs = self.current_logs_bucket[
+                "Content"].drop_duplicates().tolist()
             print("len(candidate_logs): {}".format(len(candidate_logs)))
-            #print("self.sample_size_auto: {}".format(self.sample_size_auto))
-            print("self.sample_size: {}".format(self.sample_size))
-            #if False:
-            if True:
-                if self.sample_size_auto:
-                    length_this_bucket = self.current_logs_bucket[
-                        "length"].iloc[0]
-                    #self.sample_size = compute_adaptive_sample_size(length_this_bucket, anchor_log, self.sample_size_assigned)
-                    self.sample_size = compute_adaptive_sample_size(
-                        length_this_bucket, anchor_log, 5)
-                    print("self.sample_size: {}".format(self.sample_size))
-                # debug
-                #self.sample_size = max(3, self.sample_size)
-            if dedup:
-                candidate_logs = remove_duplicates(candidate_logs)
-                print("len(candidate_logs): {}".format(len(candidate_logs)))
+            if len(candidate_logs) == 1:
+                proposal_template = None
             cluster_id = self.current_logs_bucket["cid2"].iloc[0]
-            if False:
-                sampled = sampling_from_sorted_list(
-                    anchor_log,
-                    candidate_logs,
-                    self.sample_size - 1,
-                    lcu_lamb=self.lcu_lamb,
-                    lcu_sample_size=self.lcu_sample_size,
-                    add_skip_sim=self.add_skip_sim,
-                    min_sim_threshold=self.sample_min_similarity,
-                    remove_same=True,
-                )
-            sampled = candidate_logs[:self.sample_size]
-            #sampled = candidate_logs[:1]
-            return cluster_id, sampled
+            #return cluster_id, candidate_logs[:5], proposal_template
+            #return cluster_id, candidate_logs[:5], None
+            return cluster_id, least_similar(candidate_logs), None
+
+            #anchor_log, candidate_logs = self.anchor_log_selection(
+            #    self.current_logs_bucket["Content"].tolist(), method="first")
+            #print("len(candidate_logs): {}".format(len(candidate_logs)))
+            ##print("self.sample_size_auto: {}".format(self.sample_size_auto))
+            #print("self.sample_size: {}".format(self.sample_size))
+            ##if False:
+            #if True:
+            #    if self.sample_size_auto:
+            #        length_this_bucket = self.current_logs_bucket[
+            #            "length"].iloc[0]
+            #        #self.sample_size = compute_adaptive_sample_size(length_this_bucket, anchor_log, self.sample_size_assigned)
+            #        self.sample_size = compute_adaptive_sample_size(
+            #            length_this_bucket, anchor_log, 5)
+            #        print("self.sample_size: {}".format(self.sample_size))
+            #    # debug
+            #    #self.sample_size = max(3, self.sample_size)
+            #if dedup:
+            #    candidate_logs = remove_duplicates(candidate_logs)
+            #    print("len(candidate_logs): {}".format(len(candidate_logs)))
+            #cluster_id = self.current_logs_bucket["cid2"].iloc[0]
+            #if False:
+            #    sampled = sampling_from_sorted_list(
+            #        anchor_log,
+            #        candidate_logs,
+            #        self.sample_size - 1,
+            #        lcu_lamb=self.lcu_lamb,
+            #        lcu_sample_size=self.lcu_sample_size,
+            #        add_skip_sim=self.add_skip_sim,
+            #        min_sim_threshold=self.sample_min_similarity,
+            #        remove_same=True,
+            #    )
+            #sampled = candidate_logs[:self.sample_size]
+            ##sampled = candidate_logs[:1]
+            #return cluster_id, sampled
 
     def sample_by_lcu_sampling_parallel(self, input_clusters, dedup=True):
         if not input_clusters:
@@ -756,8 +775,8 @@ class TopKTokenClustering(BaseClustering):
 
         # 8. Split df by identical features
         grouped_dfs = [
-            group.drop(columns="_feature")
-            for _, group in df.groupby("_feature")
+            #group.drop(columns="_feature")
+            group for _, group in df.groupby("_feature")
         ]
 
         return grouped_dfs
@@ -994,11 +1013,49 @@ def pad_list(lst, size):
     return lst
 
 
-def sampling_from_list(logs, sample_size, padding=True):
-    if padding:
-        if len(logs) <= sample_size:
-            logs = logs * (sample_size // len(logs) + 1)
-    return logs[:sample_size]
+def least_similar(candidate_logs, n_anchors=5):
+    if len(candidate_logs) <= 1:
+        return candidate_logs
+
+    n = len(candidate_logs)
+    anchors = [candidate_logs[0]]
+    selected_indices = {0}
+
+    # initialize min_sims with similarity to the first anchor
+    min_sims = calculate_jaccard_one_to_many(candidate_logs[0], candidate_logs)
+    min_sims[0] = math.inf  # prevent re-selecting anchor 0
+
+    for _ in range(1, min(n_anchors, n)):
+        # find least similar log (lowest min similarity)
+        next_idx = min(range(n), key=lambda i: min_sims[i])
+        anchors.append(candidate_logs[next_idx])
+        selected_indices.add(next_idx)
+
+        # compute similarity to the new anchor
+        sims_new = calculate_jaccard_one_to_many(candidate_logs[next_idx],
+                                                 candidate_logs)
+
+        # update min similarities
+        for i in range(n):
+            if i in selected_indices:
+                min_sims[i] = math.inf
+            else:
+                min_sims[i] = min(min_sims[i], sims_new[i])
+
+    return anchors
+
+
+#def least_similar(candidate_logs):
+#    if len(candidate_logs) == 1:
+#        return candidate_logs
+#    anchor_log = candidate_logs[0]
+#    candidate_logs = candidate_logs[1:]
+#    # compute similarities
+#    similarities = calculate_jaccard_one_to_many(anchor_log, candidate_logs)
+#    zipped = list(zip(similarities, candidate_logs))
+#    sorted_keys = sorted(zipped, key=lambda k: k[0])
+#    x_extracted = [k[1] for k in sorted_keys[:4]]
+#    return [anchor_log] + x_extracted
 
 
 def sampling_from_sorted_list(anchor_log,
