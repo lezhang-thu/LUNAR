@@ -349,7 +349,7 @@ class BaseClustering:
         max_cluster_id = max(self.clusters,
                              key=lambda k: len(self.clusters[k]))
         # debug
-        if True:
+        if False:
             max_cluster_id = 238 
             print(self.clusters[max_cluster_id]['_feature'].iloc[0])
             print(self.clusters[max_cluster_id].drop_duplicates(
