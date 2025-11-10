@@ -7,7 +7,7 @@ from datetime import datetime
 # 配置
 # ============================================================================
 DATASET_PATH = r"E:\LUNAR-THU\datasets\Hadoop"
-TEMPLATES_FILE = os.path.join(DATASET_PATH, "Hadoop_full.log_structured.csv")
+TEMPLATES_FILE = os.path.join(DATASET_PATH, "Hadoop_full.log_templates.csv")
 BACKUP_DIR = os.path.join(DATASET_PATH, "backups")
 OUTPUT_DIR = os.path.join(DATASET_PATH, "fixed_templates")
 REPORT_DIR = os.path.join(DATASET_PATH, "reports")
@@ -113,7 +113,7 @@ def backup_file(file_path):
         os.makedirs(BACKUP_DIR)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    backup_path = os.path.join(BACKUP_DIR, f"Hadoop_full.log_structured_backup_{timestamp}.csv")
+    backup_path = os.path.join(BACKUP_DIR, f"Hadoop_full.log_templates_backup_{timestamp}.csv")
 
     if os.path.exists(file_path):
         try:
@@ -129,8 +129,8 @@ def backup_file(file_path):
     return None
 
 
-def read_structured_file(file_path):
-    """读取 CSV 文件"""
+def read_templates_file(file_path):
+    """读取模板 CSV 文件（两列：EventId, EventTemplate）"""
     data = []
     columns = []
 
@@ -144,7 +144,7 @@ def read_structured_file(file_path):
             columns = next(reader)
             for row in reader:
                 data.append(row)
-        print_success(f"已读取 {len(data)} 行数据，{len(columns)} 列")
+        print_success(f"已读取 {len(data)} 个模板，{len(columns)} 列")
         return data, columns
     except Exception as e:
         print_error(f"读取文件错误: {e}")
@@ -178,7 +178,7 @@ def apply_fixes_to_template(template_text: str):
     return modified_text, fixes_applied
 
 
-def save_structured_file(output_path: str, columns: list, data: list):
+def save_templates_file(output_path: str, columns: list, data: list):
     """保存为新 CSV 文件"""
     try:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -194,11 +194,11 @@ def save_structured_file(output_path: str, columns: list, data: list):
         return False
 
 
-def generate_report(original_data, modified_data, columns, template_col_idx, all_changes):
+def generate_report(original_data, modified_data, columns, all_changes):
     """生成详细修复报告"""
     os.makedirs(REPORT_DIR, exist_ok=True)
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    txt_report_path = os.path.join(REPORT_DIR, f"structured_fixes_report_{timestamp}.txt")
+    txt_report_path = os.path.join(REPORT_DIR, f"templates_fixes_report_{timestamp}.txt")
 
     # 统计规则使用
     rule_usage = defaultdict(int)
@@ -209,7 +209,7 @@ def generate_report(original_data, modified_data, columns, template_col_idx, all
     try:
         with open(txt_report_path, 'w', encoding='utf-8') as f:
             f.write("=" * 180 + "\n")
-            f.write("Hadoop Structured 日志文件修复详细报告\n")
+            f.write("Hadoop 模板文件修复详细报告\n")
             f.write("=" * 180 + "\n\n")
 
             f.write(f"执行时间: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
@@ -223,7 +223,7 @@ def generate_report(original_data, modified_data, columns, template_col_idx, all
             f.write("-" * 180 + "\n")
             f.write("修复统计\n")
             f.write("-" * 180 + "\n")
-            f.write(f"总行数:       {total_rows:,}\n")
+            f.write(f"总模板数:     {total_rows:,}\n")
             f.write(f"已修改:       {modified_count:,}\n")
             f.write(f"未修改:       {total_rows - modified_count:,}\n")
             f.write(f"修改率:       {(modified_count / total_rows * 100):.4f}%\n\n")
@@ -244,10 +244,11 @@ def generate_report(original_data, modified_data, columns, template_col_idx, all
                 original_row = original_data[int(row_idx)]
                 modified_row = modified_data[int(row_idx)]
 
-                original_template = original_row[template_col_idx]
-                modified_template = modified_row[template_col_idx]
+                original_template = original_row[1] if len(original_row) > 1 else "N/A"
+                modified_template = modified_row[1] if len(modified_row) > 1 else "N/A"
+                event_id = original_row[0] if len(original_row) > 0 else "N/A"
 
-                f.write(f"\n修改 {idx}. 行 {row_idx}:\n")
+                f.write(f"\n修改 {idx}. EventId {event_id}:\n")
                 f.write(f"  修改前: {original_template}\n")
                 f.write(f"  修改后: {modified_template}\n")
                 f.write(f"  应用规则 ({len(changes)} 个):\n")
@@ -273,7 +274,7 @@ def generate_report(original_data, modified_data, columns, template_col_idx, all
 # ============================================================================
 
 def main():
-    print_header("Hadoop Structured 日志文件修复工具 - 包含规则6", "=")
+    print_header("Hadoop 模板文件修复工具 - 包含规则6", "=")
 
     print_info(f"执行时间: 2025-11-10 04:00:15 UTC")
     print_info(f"用户: XiancongMeng")
@@ -289,12 +290,11 @@ def main():
 
     # 读取文件
     print_section("第二步：读取文件", "-")
-    original_data, columns = read_structured_file(TEMPLATES_FILE)
+    original_data, columns = read_templates_file(TEMPLATES_FILE)
     if not original_data:
         return
 
-    template_col_idx = len(columns) - 1
-    print_success(f"模板列: [{template_col_idx}] {columns[template_col_idx]}\n")
+    print_success(f"列: {', '.join(columns)}\n")
 
     # 显示修复规则
     print_section("修复规则列表", "-")
@@ -312,16 +312,17 @@ def main():
     all_changes = defaultdict(list)
 
     for row_idx, row in enumerate(original_data):
-        if template_col_idx < len(row):
-            original_template = row[template_col_idx]
+        if len(row) >= 2:
+            original_template = row[1]
             modified_template, fixes_applied = apply_fixes_to_template(original_template)
 
             if fixes_applied:
-                modified_data[row_idx][template_col_idx] = modified_template
+                modified_data[row_idx][1] = modified_template
                 all_changes[str(row_idx)] = fixes_applied
 
                 # 打印修改详情
-                print(f"{Colors.BOLD}行 {row_idx}:{Colors.ENDC}")
+                event_id = row[0]
+                print(f"{Colors.BOLD}行 {row_idx} (EventId: {event_id}):{Colors.ENDC}")
                 for fix in fixes_applied:
                     print(f"  {Colors.OKGREEN}✓ 规则 {fix['id']}: {fix['name']}{Colors.ENDC}")
                     print(f"    {Colors.WARNING}修改前:{Colors.ENDC} {fix['before']}")
@@ -333,7 +334,7 @@ def main():
     modified_count = len(all_changes)
 
     print(f"{Colors.BOLD}基本统计:{Colors.ENDC}")
-    print(f"  总行数:     {total_rows:,}")
+    print(f"  总模板数:   {total_rows:,}")
     print(f"  {Colors.OKGREEN}已修改:     {modified_count:,}{Colors.ENDC}")
     print(f"  {Colors.WARNING}未修改:     {total_rows - modified_count:,}{Colors.ENDC}")
     print(f"  修改率:     {(modified_count / total_rows * 100):.4f}%\n")
@@ -353,9 +354,9 @@ def main():
     # 用户确认
     print_section("第四步：用户确认", "-")
     if modified_count > 0:
-        print_warning(f"即将修改 {modified_count:,} 行数据")
+        print_warning(f"即将修改 {modified_count:,} 个模板")
     else:
-        print_warning("未检测到需要修改的数据")
+        print_warning("未检测到需要修改的模板")
 
     response = input(f"\n{Colors.BOLD}是否继续保存修改? (y/n): {Colors.ENDC}").strip().lower()
 
@@ -363,12 +364,12 @@ def main():
         # 保存新文件
         print_section("第五步：保存文件", "-")
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(OUTPUT_DIR, f"Hadoop_full.log_structured_fixed_{timestamp}.csv")
+        output_file = os.path.join(OUTPUT_DIR, f"Hadoop_full.log_templates_fixed_{timestamp}.csv")
 
-        if save_structured_file(output_file, columns, modified_data):
+        if save_templates_file(output_file, columns, modified_data):
             # 生成报告
             print_section("第六步：生成报告", "-")
-            txt_report = generate_report(original_data, modified_data, columns, template_col_idx, all_changes)
+            txt_report = generate_report(original_data, modified_data, columns, all_changes)
 
             # 最终总结
             print_section("✅ 修复成功完成！", "=")
@@ -378,8 +379,8 @@ def main():
                 print(f"{Colors.OKGREEN}✓ 报告: {txt_report}{Colors.ENDC}")
 
             print(f"\n{Colors.BOLD}最终统计:{Colors.ENDC}")
-            print(f"  总行数: {total_rows:,}")
-            print(f"  修改行数: {modified_count:,}")
+            print(f"  总模板数: {total_rows:,}")
+            print(f"  修改模板数: {modified_count:,}")
             print(f"  修改率: {(modified_count / total_rows * 100):.4f}%")
     else:
         print_error("操作已取消")
