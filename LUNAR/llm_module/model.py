@@ -55,10 +55,14 @@ class InferLLMGrouping:
                 "# Advices on variables:\n"
                 "- Common variables: numbers, IP addresses, **URLs**, file paths, directories, hex values, usernames, etc.\n"
                 "- Full directory with filename, complex url with server address or domain should be recognize as one variable.\n"
+                #"- A very long (of length 10 or greater) token (assuming the log is split by whitespace) is likely to be a variable.\n"
                 "- All of the types listed above are variables, even if they are identical across multiple logs. **Please take the requirements seriously! If the substring (surrounded by whitespaces) falls into these types, mark them as {variable_type}, where variable_type is the corresponding type!**\n"
                 "# Advices on non-variables:\n"
                 "- Error messages/types, java exceptions, detailed commands or interrupted messages are NOT dynamic variables as they contain important information.\n"
                 "- Specific actions or status words are NOT dynamic variables.\n"
+                #"For patterns like `a=b`: `a` typically is NOT a variable, but `b` is.\n"
+                #"However, if `b` is missing, i.e., only `a=`, then, do NOT write `a={variable}`.\n"
+                #"Plz NOT use {variable} for representing an empty substring. E.g., `a=` should NOT be converted into `a={variable}`.\n"
                 #"- Avoid labeling multiple words together as one variable.\n"
             )
         else:
@@ -75,7 +79,10 @@ class InferLLMGrouping:
             self.prompt_output_constraint = (
                 "# Output Constraints: \n"
                 "- For each log line, output corresponding log template starting with LogTemplate[idx], no other line break. \n"
-                "- Each input log's template is delimited by backticks. \n")
+                "- Each input log's template is delimited by backticks. \n"
+                "- Examples:\n"
+                "  LogTemplate[1]: `this is log template 1`\n"
+                "  LogTemplate[2]: `this is log template 2`\n")
         else:
             self.prompt_output_constraint = ""
 
@@ -87,6 +94,10 @@ class InferLLMGrouping:
         self.instruction += (
             "# NON-Variable Examples (these types of strings should NOT be replaced by {variaible_type}): \n"
             "- `java.io.FileNotFoundException`\n"
+            "- `[auth]`\n"
+            #"- `a` in `a=`, `a:` etc., i.e., strings preceding `=` or `:`\n"
+            #"- those messages (e.g., `this is an error`) containing more than two words when splitting w.r.t. whitespace\n"
+            #"- `pwd`, `ls`, `sshd` (Linux commands)\n"
             #"- `worker.jni:onShutdown` -> `{configuration_reference}`\n"
             #"- `HTTP/1.1` `HTTP/1.0` -> `{protocol_and_version}`\n"
         )
@@ -205,11 +216,10 @@ class InferLLMGrouping:
             templates = [temp['post_process'] for temp in gpt_templates]
         except:
             templates = [post_process_template(log, [])[0] for log in logs]
-
         # aggregate templates
         best_template = aggregate_by_majority(logs, templates)
 
-        return best_template, query_time, gpt_templates[0]['template']
+        return best_template, query_time, gpt_templates[0]['template'], templates
 
     def match_log_pattern(self, template: str, log: str) -> bool:
         """
@@ -413,9 +423,6 @@ class InferLLMGrouping:
 
         # replace null template with previous template
         gpt_templates = self.make_up_template(logs, gpt_templates)
-        # debug
-        #print('gpt_templates:\n{}'.format(gpt_templates))
-        #exit(0)
 
         print("\t============ PostProcess ====================")
         for temp in gpt_templates:

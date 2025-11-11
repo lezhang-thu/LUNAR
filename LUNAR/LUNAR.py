@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import pandas as pd
 import multiprocessing
@@ -7,6 +8,7 @@ from functools import partial
 from typing import List, Dict, Any
 
 from LUNAR.llm_module.model import InferLLMGrouping
+from LUNAR.llm_module.post_process import post_process_template
 from LUNAR.log_partition.clustering import TopKTokenClustering
 from LUNAR.utils import write_json, get_max_retry, verify_template_for_log_regex, validate_template
 from LUNAR.utils import preprocess_log_for_query, verify_template_and_update
@@ -209,7 +211,7 @@ class LUNARParser(BaseParser):
             # Sample logs to query
             print(f"Iteration {n_iter}")
             prev_templates = list()
-            update_success, logs_to_query, logs_to_query_regex, template, cluster_id, wrong_template = self.parse_one_iter(
+            update_success, logs_to_query, logs_to_query_regex, template, cluster_id, wrong_template, all_templates = self.parse_one_iter(
                 reparse=prev_templates)
             prev_templates.append(wrong_template)
 
@@ -231,7 +233,16 @@ class LUNARParser(BaseParser):
                         logs_to_query_regex)
                     update_success, update_num = self.validate_and_update_with_cluster_map_template_database(
                         logs_to_query_regex, template, cluster_id)
-
+            # lezhang.thu - start
+            if update_success and len(all_templates) > 0:
+                print(
+                    "A good starting point. Try to use the remaining templates..."
+                )
+                for _ in all_templates:
+                    print(_)
+                    self.validate_and_update_with_cluster_map_template_database(
+                        logs_to_query_regex, _, cluster_id)
+            # lezhang.thu - end
             if not update_success:
                 print(
                     f"Update failed. Retry querying failed. Get a compromise response also failed."
@@ -257,7 +268,8 @@ class LUNARParser(BaseParser):
         self.save_results(logName)
 
     def parse_one_iter(self, reparse):
-        cluster_id, logs_to_query, proposal_template = self.clusters.sample_for_llm()
+        cluster_id, logs_to_query, proposal_template = self.clusters.sample_for_llm(
+        )
         print("cluster_id: {}\nlogs_to_query: {}".format(
             cluster_id, logs_to_query))
         print('self.add_regex: {}'.format(self.add_regex))
@@ -269,13 +281,30 @@ class LUNARParser(BaseParser):
         else:
             logs_to_query_regex = logs_to_query
         # debug
-        logs_to_query_regex = [log.replace("`", "") for log in logs_to_query_regex]
-        logs_to_query_regex = [log.replace('"', '') for log in logs_to_query_regex]
+        logs_to_query_regex = [
+            re.sub(r'`[^`]*`', "{variable}", log)
+            for log in logs_to_query_regex
+        ]
+        logs_to_query_regex = [
+            re.sub(r"`[^']*'", "{variable}", log)
+            for log in logs_to_query_regex
+        ]
+        logs_to_query_regex = [
+            re.sub(r'"[^"]*"', "{variable}", log)
+            for log in logs_to_query_regex
+        ]
+        logs_to_query_regex = [
+            re.sub(r"'[^']*'", "{variable}", log)
+            for log in logs_to_query_regex
+        ]
 
         # Query LLM
         examplars = self.get_examplars()
-        template, query_time, wrong_template = self.llm.parsing_log_templates(
-            logs_to_query_regex, examplars, reparse=reparse, proposal=proposal_template)
+        template, query_time, wrong_template, all_templates = self.llm.parsing_log_templates(
+            logs_to_query_regex,
+            examplars,
+            reparse=reparse,
+            proposal=proposal_template)
         self.wait_query_time += query_time
         self.query_count += 1
         print("\t============ Aggregate ====================")
@@ -287,14 +316,16 @@ class LUNARParser(BaseParser):
         while not update_success and counter < 3:
             llm_template = self.llm.improve_template(logs_to_query_regex,
                                                      template)
-            print("llm_template:\n{}".format(llm_template))
-            template = llm_template
-            update_success, update_num = self.validate_and_update_with_cluster_map_template_database(
-                logs_to_query_regex, template, cluster_id)
+            llm_template, correct = post_process_template(llm_template, [])
+            if correct:
+                print("llm_template:\n{}".format(llm_template))
+                template = llm_template
+                update_success, update_num = self.validate_and_update_with_cluster_map_template_database(
+                    logs_to_query_regex, template, cluster_id)
             counter += 1
         # lezhang.thu@gmail.com - end
-
-        return update_success, logs_to_query, logs_to_query_regex, template, cluster_id, wrong_template
+        t = set() if counter > 0 else set(all_templates) - set([template])
+        return update_success, logs_to_query, logs_to_query_regex, template, cluster_id, wrong_template, t
 
     def initialize_template_database(self):
         for k, _df in self.clusters.clusters.items():

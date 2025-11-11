@@ -350,7 +350,7 @@ class BaseClustering:
                              key=lambda k: len(self.clusters[k]))
         # debug
         if False:
-            max_cluster_id = 238 
+            max_cluster_id = 74
             print(self.clusters[max_cluster_id]['_feature'].iloc[0])
             print(self.clusters[max_cluster_id].drop_duplicates(
                 subset='Content', keep='last'))
@@ -388,7 +388,8 @@ class BaseClustering:
             cluster_id = self.current_logs_bucket["cid2"].iloc[0]
             #return cluster_id, candidate_logs[:5], proposal_template
             #return cluster_id, candidate_logs[:5], None
-            return cluster_id, least_similar(candidate_logs), None
+            #t = compute_adaptive_sample_size(self.current_logs_bucket["length"].iloc[0], candidate_logs[0], 5)
+            return cluster_id, least_similar(candidate_logs, 5), None
 
             #anchor_log, candidate_logs = self.anchor_log_selection(
             #    self.current_logs_bucket["Content"].tolist(), method="first")
@@ -965,8 +966,8 @@ def compute_adaptive_sample_size(length_log,
     with_potential_var = judge_var_log(anchor_log)
     if with_potential_var:
         return max_size
-    #elif length_log <= 5:
-    elif length_log <= 2:
+    elif length_log <= 5:
+    #elif length_log <= 2:
         return 1
     else:
         return max_size

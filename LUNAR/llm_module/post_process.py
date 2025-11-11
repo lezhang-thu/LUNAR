@@ -6,6 +6,98 @@ import regex as re
 param_regex = [r'{([ :_#.\-\w\d]+)}', r'{}']
 
 
+def process_string(s):
+    # Tokenize by whitespace
+    tokens = s.split()
+    
+    # Process each token
+    processed_tokens = []
+    for token in tokens:
+        # Keep track of where we've processed up to
+        search_start = 0
+        
+        # Process each '<*>' sequentially
+        while True:
+            # Find next '<*>' starting from search_start
+            marker = '<*>'
+            pos = token.find(marker, search_start)
+            
+            if pos == -1:
+                # No more '<*>' found
+                break
+            
+            # Get the part before '<*>'
+            before = token[:pos]
+            
+            # Get the part after '<*>'
+            after = token[pos + 3:]  # Skip '<*>' (3 characters)
+            
+            end_chars = ('(', ')', '[', ']', ',', '.', ':', '<', '>', '#', '$', '/')
+            first_end_pos = -1
+            
+            for i, char in enumerate(after):
+                if char in end_chars:
+                    first_end_pos = i
+                    break
+            
+            # Build the processed token
+            if first_end_pos >= 0:
+                # Found an end character, keep it and everything after
+                token = before + marker + after[first_end_pos:]
+            else:
+                # No end character found, remove everything after '<*>'
+                token = before + marker
+            
+            # Move search_start past the current '<*>' we just processed
+            search_start = pos + 3
+        
+        processed_tokens.append(token)
+    
+    # Concatenate tokens back with spaces
+    return ' '.join(processed_tokens)
+    ## Tokenize by whitespace
+    #tokens = s.split()
+
+    ## Process each token
+    #processed_tokens = []
+    #for token in tokens:
+    #    if len(re.findall(r"<\*>", token)) == 1:
+    #    #if '<*>' in token:
+    #        # Find position of '<*>'
+    #        idx = token.index('<*>')
+
+    #        # Get the part before '<*>'
+    #        before = token[:idx]
+
+    #        # Get the part after '<*>'
+    #        after = token[idx + 3:]  # Skip '<*>' (3 characters)
+
+    #        # Find the first occurrence of ), ], , or .
+    #        end_chars = ('(', ')', '[', ']', ',', '.', ':', '<', '>', '#', '$', '/')
+    #        first_end_pos = -1
+
+    #        for i, char in enumerate(after):
+    #            if char in end_chars:
+    #                first_end_pos = i
+    #                break
+
+    #        # Build the processed token
+    #        if first_end_pos >= 0:
+    #            # Found an end character, keep it and everything after
+    #            processed_token = before + '<*>' + after[first_end_pos:]
+    #        else:
+    #            # No end character found, remove everything after '<*>'
+    #            processed_token = before + '<*>'
+
+    #        processed_tokens.append(processed_token)
+    #    else:
+    #        # Token doesn't contain '<*>', keep as is
+    #        processed_tokens.append(token)
+
+    ## Concatenate tokens back with spaces
+    #return ' '.join(processed_tokens)
+
+
 def correct_single_template(template, user_strings=None):
     """Apply all rules to process a template.
 
@@ -77,6 +169,9 @@ def correct_single_template(template, user_strings=None):
         new_tokens.append(token)
     # make the template using new_tokens
     template = ''.join(new_tokens)
+    # debug - lezhang.thu - start
+    template = process_string(template)
+    # debug - lezhang.thu - end
 
     # Substitute consecutive variables only if separated with any delimiter including "." (DV)
     while True:
@@ -179,8 +274,9 @@ def post_process_template(template, regs_common):
         for reg in regs_common:
             template = reg.sub("<*>", template)
     else:
-        template = re.sub(r'\{[A-Za-z0-9_-]+\}', '<*>', template) 
+        template = re.sub(r'\{[A-Za-z0-9_-]+\}', '<*>', template)
     # print("2:", template)
+    # debug
     template = correct_single_template(template)
     # print("3:", template)
     static_part = template.replace("<*>", "")
