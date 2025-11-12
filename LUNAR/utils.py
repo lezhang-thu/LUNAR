@@ -25,23 +25,41 @@ def get_max_retry(logs=[], max_retry_assigned=3):
 import regex as re
 
 
-def verify_template_for_log_regex(log, template):
+#def verify_template_for_log_regex(log, template):
+#    """
+#    input a log and a template, return True if the template matches the log, otherwise return False
+#    :param log:
+#    :param template:
+#    :return:
+#    """
+#    if "<*>" not in template:
+#        return log == template
+#    template_regex = re.sub(r"<.{1,5}>", "<*>", template)
+#    if "<*>" not in template_regex:
+#        return False
+#    template_regex = re.sub(r"([^A-Za-z0-9])", r"\\\1", template_regex)
+#    template_regex = re.sub(r"\\ +", r"\\s+", template_regex)
+#    template_regex = "^" + template_regex.replace("\<\*\>", "(?:.*?)") + "$"
+#    match = re.match(template_regex, log)
+#    return match is not None
+def match_template(log: str, template: str) -> bool:
     """
-    input a log and a template, return True if the template matches the log, otherwise return False
-    :param log:
-    :param template:
-    :return:
+    Check whether a log matches a template.
+    In the template, '<*>' can match any string (including empty).
     """
-    if "<*>" not in template:
-        return log == template
-    template_regex = re.sub(r"<.{1,5}>", "<*>", template)
-    if "<*>" not in template_regex:
-        return False
-    template_regex = re.sub(r"([^A-Za-z0-9])", r"\\\1", template_regex)
-    template_regex = re.sub(r"\\ +", r"\\s+", template_regex)
-    template_regex = "^" + template_regex.replace("\<\*\>", "(?:.*?)") + "$"
-    match = re.match(template_regex, log)
-    return match is not None
+    # Escape regex special chars except the <*> pattern
+    # Step 1: temporarily replace <*> with a placeholder
+    placeholder = "__WILDCARD__"
+    temp = template.replace("<*>", placeholder)
+
+    # Step 2: escape everything else for regex safety
+    temp = re.escape(temp)
+
+    # Step 3: replace placeholder back with regex '.*'
+    regex_pattern = "^" + temp.replace(placeholder, ".*") + "$"
+
+    # Step 4: match
+    return re.match(regex_pattern, log) is not None
 
 
 def verify_template_for_log_with_first_token(log, template):
@@ -53,7 +71,8 @@ def verify_template_for_log_with_first_token(log, template):
         return False
     # debug
     #print('so far so good')
-    return verify_template_for_log_regex(log, template)
+    #return verify_template_for_log_regex(log, template)
+    return match_template(log, template)
 
 
 def verify_template_for_log_with_first_token_subset(log, template):

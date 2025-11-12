@@ -6,7 +6,7 @@ import pandas as pd
 from collections import Counter
 
 pd.set_option('mode.chained_assignment', None)
-from LUNAR.utils import verify_template_for_log_regex, verify_template_for_log_with_first_token, verify_template_for_log_with_first_token_subset
+from LUNAR.utils import verify_template_for_log_with_first_token, verify_template_for_log_with_first_token_subset
 from LUNAR.utils import preprocess_log_for_query
 from LUNAR.log_partition.text_distance import similarity_jaccard_words, calculate_same_one_to_many, calculate_jaccard_one_to_many, calculate_jaccard_one_to_many_mask
 from LUNAR.log_partition.text_distance import calculate_jaccard_and_diff_self_all_comp

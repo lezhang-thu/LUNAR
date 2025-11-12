@@ -10,7 +10,7 @@ from typing import List, Dict, Any
 from LUNAR.llm_module.model import InferLLMGrouping
 from LUNAR.llm_module.post_process import post_process_template
 from LUNAR.log_partition.clustering import TopKTokenClustering
-from LUNAR.utils import write_json, get_max_retry, verify_template_for_log_regex, validate_template
+from LUNAR.utils import write_json, get_max_retry, validate_template
 from LUNAR.utils import preprocess_log_for_query, verify_template_and_update
 from LUNAR.template_database import TemplateDatabase
 

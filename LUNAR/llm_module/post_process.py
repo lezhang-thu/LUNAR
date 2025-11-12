@@ -32,7 +32,7 @@ def process_string(s):
             # Get the part after '<*>'
             after = token[pos + 3:]  # Skip '<*>' (3 characters)
             
-            end_chars = ('(', ')', '[', ']', ',', '.', ':', '<', '>', '#', '$', '/')
+            end_chars = ('(', ')', '[', ']', '{', '}', ',', '.', ':', '<', '>', '#', '$', '/')
             first_end_pos = -1
             
             for i, char in enumerate(after):
