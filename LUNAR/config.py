@@ -212,7 +212,8 @@ LLM_BASE_MAPPING = {
     #"gpt35-0125": ["deepseek-v3-2-exp", "https://api.chatanywhere.tech", "sk-F2fqBWKmrkKEvwiI6yaKgPRJVLyGZLskjdfAebVIy9sT5cir"],
     #"gpt35-0125": ["Qwen/Qwen3-Coder-30B-A3B-Instruct", "https://api.siliconflow.cn/v1", "sk-asuoigwfjoacuhwehjkbanwbuoutwkdlrxkegqwfnohtglzl"],
     #"gpt35-0125": ["qwen3-coder", "http://localhost:11434/v1", "ollama"],
-    "gpt35-0125": ["deepseek-ai/DeepSeek-V3.2-Exp", "https://api.siliconflow.cn/v1", "sk-asuoigwfjoacuhwehjkbanwbuoutwkdlrxkegqwfnohtglzl"],
+    #"gpt35-0125": ["deepseek-ai/DeepSeek-V3.2-Exp", "https://api.siliconflow.cn/v1", "sk-asuoigwfjoacuhwehjkbanwbuoutwkdlrxkegqwfnohtglzl"],
+    "gpt35-0125": ["deepseek-chat", "https://api.deepseek.com", "sk-9374df4b35f440bb97e5724e00b1fae8"]
 }
 
 

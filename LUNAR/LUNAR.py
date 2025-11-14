@@ -289,14 +289,14 @@ class LUNARParser(BaseParser):
             re.sub(r"`[^']*'", "{variable}", log)
             for log in logs_to_query_regex
         ]
-        logs_to_query_regex = [
-            re.sub(r'"[^"]*"', "{variable}", log)
-            for log in logs_to_query_regex
-        ]
-        logs_to_query_regex = [
-            re.sub(r"'[^']*'", "{variable}", log)
-            for log in logs_to_query_regex
-        ]
+        #logs_to_query_regex = [
+        #    re.sub(r'"[^"]*"', '"{variable}"', log)
+        #    for log in logs_to_query_regex
+        #]
+        #logs_to_query_regex = [
+        #    re.sub(r"'[^']*'", '"{variable}"', log)
+        #    for log in logs_to_query_regex
+        #]
 
         # Query LLM
         examplars = self.get_examplars()

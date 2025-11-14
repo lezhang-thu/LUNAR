@@ -37,7 +37,8 @@ class InferLLMGrouping:
             "- I will provide multiple log messages, each delimited by backticks.\n"
             "- You must identify and extract all dynamic variables (some variables are identical across logs, but they are still variables. Please see variable types below) in each log with {placeholder} and output static log templates.\n"
             "- Identify the semantics of variables and compare the differences between logs to identify potential dynamic variables if they belong to the same template.\n"
-            "- Preserve any dynamic variables already marked by `<*>` or `{placeholder}`.\n"
+            #"- Preserve any dynamic variables already marked by `<*>` or `{placeholder}`.\n"
+            "- Convert every `<*>` (these `<*>` are already variables) in the log into `{variable}`.\n"
             #"- Pay attention to the slightly different strings among logs, which have high possibility to be dynamic variable.\n"
             "- Do not convert non-variables, especially when only one log is presented in the group.\n"
         )

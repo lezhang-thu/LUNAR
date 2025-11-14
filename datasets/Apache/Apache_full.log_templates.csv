@@ -1,5 +1,5 @@
 EventId,EventTemplate
-E1,"[client <*>] mod_security: Access denied with code <*>. Error reading POST data, error_code=<*> [hostname <*>] [uri <*>]"
+E1,"[client <*>] mod_security: Access denied with code <*> Error reading POST data, error_code=<*> [hostname <*>] [uri <*>]"
 E2,mod_python: Creating <*> session mutexes based on <*> max processes and <*> max threads.
 E3,[client <*>] client sent <*> request without hostname (see RFC2616 section <*>): /
 E4,Digest: generating secret for digest authentication ...

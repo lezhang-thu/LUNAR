@@ -9,37 +9,38 @@ param_regex = [r'{([ :_#.\-\w\d]+)}', r'{}']
 def process_string(s):
     # Tokenize by whitespace
     tokens = s.split()
-    
+
     # Process each token
     processed_tokens = []
     for token in tokens:
         # Keep track of where we've processed up to
         search_start = 0
-        
+
         # Process each '<*>' sequentially
         while True:
             # Find next '<*>' starting from search_start
             marker = '<*>'
             pos = token.find(marker, search_start)
-            
+
             if pos == -1:
                 # No more '<*>' found
                 break
-            
+
             # Get the part before '<*>'
             before = token[:pos]
-            
+
             # Get the part after '<*>'
             after = token[pos + 3:]  # Skip '<*>' (3 characters)
-            
-            end_chars = ('(', ')', '[', ']', '{', '}', ',', '.', ':', '<', '>', '#', '$', '/')
+
+            end_chars = ('(', ')', '[', ']', '{', '}', ',', '.', ':', '<', '>',
+                         '#', '$', '/', '"', "'")
             first_end_pos = -1
-            
+
             for i, char in enumerate(after):
                 if char in end_chars:
                     first_end_pos = i
                     break
-            
+
             # Build the processed token
             if first_end_pos >= 0:
                 # Found an end character, keep it and everything after
@@ -47,12 +48,12 @@ def process_string(s):
             else:
                 # No end character found, remove everything after '<*>'
                 token = before + marker
-            
+
             # Move search_start past the current '<*>' we just processed
             search_start = pos + 3
-        
+
         processed_tokens.append(token)
-    
+
     # Concatenate tokens back with spaces
     return ' '.join(processed_tokens)
     ## Tokenize by whitespace
@@ -211,26 +212,26 @@ def correct_single_template(template, user_strings=None):
     while "<*>.<*>" in template:
         template = template.replace("<*>.<*>", "<*>")
 
-    while ' "<*>" ' in template:
-        template = template.replace(' "<*>" ', ' <*> ')
-
-    while " '<*>' " in template:
-        template = template.replace(" '<*>' ", " <*> ")
+    while '"<*>"' in template:
+        template = template.replace('"<*>"', '<*>')
+    while "'<*>'" in template:
+        template = template.replace("'<*>'", "<*>")
 
     while "<*><*>" in template:
         template = template.replace("<*><*>", "<*>")
 
-    # newly added by me
     # debug
-    if False:
-        while " <*>. " in template:
-            template = template.replace(" <*>. ", " <*> ")
-        while " <*>, " in template:
-            template = template.replace(" <*>, ", " <*> ")
-    # debug
-    # lezhang.thu
+    # lezhang.thu - start
     while "( <*>, <*>)" in template:
         template = template.replace("( <*>, <*>)", "(<*>, <*>)")
+    template = template.replace('`', '')
+    # lezhang.thu - end
+
+    # newly added by me
+    while " <*>. " in template:
+        template = template.replace(" <*>. ", " <*> ")
+    while " <*>, " in template:
+        template = template.replace(" <*>, ", " <*> ")
 
     while "<*>+<*>" in template:
         template = template.replace("<*>+<*>", "<*>")
