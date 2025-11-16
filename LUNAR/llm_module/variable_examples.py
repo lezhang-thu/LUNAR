@@ -12,6 +12,7 @@ VARIABLE_EXAMPLES_SETTING = {
             "ip_or_url": ["192.168.0.1:8008"],
             "version": ["v2.2"],
             "value": ["null"],
+            "bool": ["false"],
             # debug
             #"url": ["https://www.google.com.hk/"]
         }
