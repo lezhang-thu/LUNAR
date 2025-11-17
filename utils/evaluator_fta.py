@@ -34,7 +34,8 @@ def compute_template_level_accuracy(dataset, df_groundtruth, df_parsedresult, fi
     grouped_df = df_combined.groupby('parsedlog')
 
     wrong_idx = 0
-    for identified_template, group in tqdm(grouped_df):
+    #for identified_template, group in tqdm(grouped_df):
+    for identified_template, group in grouped_df:
     # for identified_template in tqdm(series_parsedlog_valuecounts.index):
         # Get the log_message_ids corresponding to the identified template from the tool-generated structured file
         # log_message_ids = parsedresult_df.loc[parsedresult_df['EventTemplate'] == identified_template, 'LineId']

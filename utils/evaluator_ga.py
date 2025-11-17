@@ -67,7 +67,8 @@ def get_accuracy_ga(series_groundtruth, series_parsedlog, filter_templates=None)
     if filter_templates is not None:
         filter_identify_templates = set()
     # for ground_truthId in tqdm(series_groundtruth_valuecounts.index):
-    for ground_truthId, group in tqdm(grouped_df):
+    #for ground_truthId, group in tqdm(grouped_df):
+    for ground_truthId, group in grouped_df:
         # logIds = series_groundtruth[series_groundtruth == ground_truthId].index
         series_parsedlog_logId_valuecounts = group['parsedlog'].value_counts()
         if filter_templates is not None and ground_truthId in filter_templates:

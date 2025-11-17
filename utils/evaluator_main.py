@@ -54,6 +54,7 @@ def evaluator(
         print("corrected oracle templates")
     else:
         groundtruth = os.path.join(input_dir, f"{dataset}_{data_type}.log_structured.csv")
+        gt_template = os.path.join(input_dir, f"{dataset}_{data_type}.log_templates.csv")
     parsedresult = os.path.join(output_dir, f"{dataset}_{data_type}.log_structured.csv")
 
     # if not os.path.exists(parsedresult):
@@ -83,11 +84,27 @@ def evaluator(
     parsedresult = pd.read_csv(parsedresult, dtype=str)
     parsedresult.fillna("", inplace=True)
     groundtruth = pd.read_csv(groundtruth, dtype=str)
+    gt_template = pd.read_csv(gt_template, dtype=str)
     # print("Start to modify output")
     # !!!!ATTENTION: This following apply function will cause much time in evaluation.
     #                You can put the following ground-truth processing before evaluation
     # parsedresult['EventTemplate'] = parsedresult['EventTemplate'].apply(lambda x: correct_single_template(x))
-    groundtruth['EventTemplate'] = groundtruth['EventTemplate'].apply(lambda x: correct_single_template(x))
+
+    # lezhang.thu - start
+    # Step 1: Build dict from gt_template
+    id_to_template = dict(zip(gt_template["EventId"], gt_template["EventTemplate"]))
+
+    # Step 2: Correct templates ONCE
+    corrected_dict = {
+        eid: correct_single_template(tpl)
+        for eid, tpl in id_to_template.items()
+    }
+
+    # Step 3: Apply corrected templates to groundtruth using EventId
+    groundtruth["EventTemplate"] = groundtruth["EventId"].map(corrected_dict)
+    # lezhang.thu - end
+
+    #groundtruth['EventTemplate'] = groundtruth['EventTemplate'].apply(lambda x: correct_single_template(x))
     filter_templates = None
     if complex != 0:
         print("Evaluate on complex mode: ", complex)
