@@ -371,7 +371,8 @@ class InferLLMGrouping:
         print('Improving...')
         print(self.response)
         t = re.search(r"ImprovedTemplate:\s*`([^`]*)`", self.response)
-        return t.group(1)
+        if t is None: return ''
+        else: return t.group(1)
 
     def get_response(self, messages, temperature=0.0):
         answers = self.client.chat.completions.create(
