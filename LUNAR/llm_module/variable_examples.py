@@ -5,14 +5,20 @@ VARIABLE_EXAMPLES_SETTING = {
         "regex_from_drain": [],
         "variable_examples": {
             "directory": ["/var/www/html/xxx"],
-            "file": ["/var/lib/zookeeper/log.000000001"],
+            "file": ["/var/lib/zookeeper/log.000000001", "variable_examples.py"],
             "blk_id": ["blk_-1234567832142354978"],
+            #"task_id": ["task_123456789"],
+            #"job_id": ["job_123456789"],
             "api": ["com.huawei.health.manager.Service@32a6bf8"],
             "time": ["2017-07-02 15:46:40.536"],
             "ip_or_url": ["192.168.0.1:8008"],
             "version": ["v2.2"],
             "value": ["null"],
             "bool": ["false"],
+            "user_name": ["root"],
+            "hex": ["0x0123456789ABCDEF"],
+            "url": ["https://www.zaobao.com/"],
+            #"specific_str": ["abcd-efg-hijk-lmn"],
             # debug
             #"url": ["https://www.google.com.hk/"]
         }

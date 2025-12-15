@@ -349,17 +349,17 @@ class BaseClustering:
         max_cluster_id = max(self.clusters,
                              key=lambda k: len(self.clusters[k]))
         # debug
-        if False:
-            max_cluster_id = 140
-            print(self.clusters[max_cluster_id]['_feature'].iloc[0])
+        if True:
+            max_cluster_id = 134
+            #print(self.clusters[max_cluster_id]['_feature'].iloc[0])
             print(self.clusters[max_cluster_id].drop_duplicates(
                 subset='Content', keep='last'))
-            print("self.pad_query: {}".format(self.pad_query))
-            #exit(0)
+            #print("self.pad_query: {}".format(self.pad_query))
 
         self.current_logs_bucket_id = max_cluster_id
         self.current_logs_bucket = self.clusters[self.current_logs_bucket_id]
-        proposal_template = self.current_logs_bucket["_feature"].iloc[0]
+        #proposal_template = self.current_logs_bucket["_feature"].iloc[0]
+        proposal_template = None
         print(
             f"Sample {self.sample_size} from current logs bucket: ID: {self.current_logs_bucket_id}, Len: {self.current_logs_bucket['length'].iloc[0]}, Bucket Size: {len(self.current_logs_bucket)}, Total Buckets: {len(self.clusters)}",
         )
@@ -780,6 +780,19 @@ class TopKTokenClustering(BaseClustering):
             group for _, group in df.groupby("_feature")
         ]
 
+        # lezhang.thu - start
+        #groups = [group for _, group in df.groupby("_feature")]
+
+        #singleton_groups = [g for g in groups if len(g) == 1]
+        #multi_groups = [g for g in groups if len(g) > 1]
+
+        #if singleton_groups:
+        #    merged_singletons = pd.concat(singleton_groups, ignore_index=True)
+        #    multi_groups.append(merged_singletons)
+
+        #grouped_dfs = [g.drop(columns="_feature") for g in multi_groups]
+        # lezhang.thu - end
+
         return grouped_dfs
 
     #def brain_cluster(self, df):
@@ -967,7 +980,7 @@ def compute_adaptive_sample_size(length_log,
     if with_potential_var:
         return max_size
     elif length_log <= 5:
-    #elif length_log <= 2:
+        #elif length_log <= 2:
         return 1
     else:
         return max_size
@@ -1026,9 +1039,15 @@ def least_similar(candidate_logs, n_anchors=5):
     min_sims = calculate_jaccard_one_to_many(candidate_logs[0], candidate_logs)
     min_sims[0] = math.inf  # prevent re-selecting anchor 0
 
+    def random_argmin(values):
+        min_val = min(values)
+        candidates = [i for i, v in enumerate(values) if v == min_val]
+        return random.choice(candidates)
+
     for _ in range(1, min(n_anchors, n)):
         # find least similar log (lowest min similarity)
-        next_idx = min(range(n), key=lambda i: min_sims[i])
+        #next_idx = min(range(n), key=lambda i: min_sims[i])
+        next_idx = random_argmin(min_sims)
         anchors.append(candidate_logs[next_idx])
         selected_indices.add(next_idx)
 

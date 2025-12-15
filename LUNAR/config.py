@@ -208,12 +208,11 @@ benchmark_settings = {
 
 
 LLM_BASE_MAPPING = {
-    #"gpt35-0125": ["gpt-3.5-turbo-0125", "https://api.chatanywhere.tech", "sk-F2fqBWKmrkKEvwiI6yaKgPRJVLyGZLskjdfAebVIy9sT5cir"],
-    #"gpt35-0125": ["deepseek-v3-2-exp", "https://api.chatanywhere.tech", "sk-F2fqBWKmrkKEvwiI6yaKgPRJVLyGZLskjdfAebVIy9sT5cir"],
-    #"gpt35-0125": ["Qwen/Qwen3-Coder-30B-A3B-Instruct", "https://api.siliconflow.cn/v1", "sk-asuoigwfjoacuhwehjkbanwbuoutwkdlrxkegqwfnohtglzl"],
+    #"gpt35-0125": ["gpt-5.1-chat-latest", "https://api.chatanywhere.tech", "sk-cfBnOB8k2J62TQwg0FWwXM16oqKYhp5vhm4ALbOw9dUzOBoR"],
+    #"gpt35-0125": ["gpt-5.2", "https://api.jiekou.ai/openai", "sk_Ex6vmEzbqrzewncHNhaq5XvHb7cw-UObVMprIgHy4bI"],
     #"gpt35-0125": ["qwen3-coder", "http://localhost:11434/v1", "ollama"],
     #"gpt35-0125": ["deepseek-ai/DeepSeek-V3.2-Exp", "https://api.siliconflow.cn/v1", "sk-asuoigwfjoacuhwehjkbanwbuoutwkdlrxkegqwfnohtglzl"],
-    "gpt35-0125": ["deepseek-chat", "https://api.deepseek.com", "sk-9374df4b35f440bb97e5724e00b1fae8"]
+    "gpt35-0125": ["deepseek-chat", "https://api.deepseek.com", "sk-86a1b28114784618953cbd33d6fd4ae0"]
 }
 
 
@@ -326,7 +325,8 @@ def load_args():
         args.gt_dir = args.data_dir
 
     # output dir
-    args.prefix = "LUNAR-single"
+    if args.prefix == "":
+        args.prefix = "LUNAR-single"
     args.output_dir = os.path.join(args.base_dir, "saved_results", args.prefix)
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)

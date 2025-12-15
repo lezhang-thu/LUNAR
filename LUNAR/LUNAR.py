@@ -299,7 +299,7 @@ class LUNARParser(BaseParser):
         #]
 
         # Query LLM
-        examplars = self.get_examplars()
+        examplars = [] 
         template, query_time, wrong_template, all_templates = self.llm.parsing_log_templates(
             logs_to_query_regex,
             examplars,

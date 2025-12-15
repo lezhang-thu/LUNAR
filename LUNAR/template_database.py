@@ -434,19 +434,20 @@ class TemplateDatabase:
         """
         template_tokens = split_template_naive(event_template)
         if not template_tokens or event_template == "<*>":
-            return False, event_template, None
+            return False, event_template, None, None
         if len(self.template_items) == 0:
             self.insert_template(event_template, indexes)
-            return False, event_template, None
+            return False, event_template, None, None
         if len(template_tokens) == 1:
             self.insert_template(event_template, indexes)
-            return False, event_template, None
+            return False, event_template, None, None
 
         self.template_token_list = [split_template_naive(t) for t in self.template_list]
         coarse_similarities = [jaccard_similarity(template_tokens, t) for t in self.template_token_list]
 
         # only compare with the most similar template
         max_sim_idx = coarse_similarities.index(max(coarse_similarities))
+        xyz = self.template_list[max_sim_idx]
         if self.judge_template_merge_combine(event_template, self.template_list[max_sim_idx]):
             print(f"[TemplateDB] Try Merge: `{event_template}` | `{self.template_list[max_sim_idx]}`")
             new_template, flag_merge_success = merge_template_by_star(event_template, self.template_list[max_sim_idx])
@@ -454,16 +455,16 @@ class TemplateDatabase:
                 insert_indexes = self.update_template(new_template, indexes, max_sim_idx)
                 self.template_items[new_template]['ori_templates'].append(event_template)
                 print(f"[TemplateDB] Merged: -> `{new_template}`")
-                return True, new_template, insert_indexes
+                return True, new_template, insert_indexes, xyz
             else:
                 self.insert_template(event_template, indexes)
                 print(f"[TemplateDB] Reject Merge, Remain Template: `{event_template}`")
-                return False, event_template, None
+                return False, event_template, None, xyz
         elif self.judge_template_merge_trace_attribute(event_template, self.template_list[max_sim_idx]):
             pass
         else:
             self.insert_template(event_template, indexes)
-            return False, event_template, None
+            return False, event_template, None, xyz
 
     def judge_template_merge_naive(self, template1, template2, split=[" "]):
         """

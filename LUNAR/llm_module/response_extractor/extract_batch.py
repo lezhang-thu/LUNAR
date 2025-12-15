@@ -8,9 +8,9 @@ class BatchExtract(Extract):
 
     @staticmethod
     def extract(raw_response: str, **kwargs: Any) -> List[Any]:
-        pattern = r"LogTemplate\[(\d+)\]:\s*`([^`]*)`"
+        pattern = r'LogTemplate.*?`([^`]+)`'
         matches = re.findall(pattern, raw_response)
-        return [{'idx': int(idx), 'template': tmpl} for idx, tmpl in matches]
+        return [{'idx': idx + 1, 'template': tmpl} for idx, tmpl in enumerate(matches)]
         #"""
         #Extract the batch of multi-choice answers from raw_response by regex.
 
