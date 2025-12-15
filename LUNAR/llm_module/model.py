@@ -44,9 +44,9 @@ class InferLLMGrouping:
             self.prompt_variable_advice = (
                 "# Advices on variables:\n"
                 "- Common variables include numbers, version identifiers, IP addresses, URLs, file paths (including file names and directories), booleans, hexadecimal values, job IDs, and usernames.\n"
-                "- Aim to label the entire token in a single variable. For example, replace `job-123456` with `{job_id}`, rather than `job-{job_id}`.\n"
+                "- Aim to label the entire token as a single variable. For example, replace `job-123456` with `{job_id}`, rather than `job-{job_id}`.\n"
                 "- Full directories including the filename, and complex URLs (with server address or domain) must be recognized and treated as a single variable.\n"
-                "- For a key=value pattern, if the value is not a complex structure, the value should be treated as a variable.\n"
+                "- For dictionary structures, including recursively nested dictionaries, treat all values as variables, even if they are identical across logs. This rule overrides all other rules.\n"
                 "- All types listed are variables, even if identical across multiple logs. **Strictly apply the corresponding `{variable_type}` replacement whenever a substring matches any listed type.**\n"
                 "# Advices on non-variables:\n"
                 "- Error types, Java exceptions, and specific commands are not dynamic variables, as they contain essential information.\n"
