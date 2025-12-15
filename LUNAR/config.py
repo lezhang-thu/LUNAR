@@ -208,11 +208,7 @@ benchmark_settings = {
 
 
 LLM_BASE_MAPPING = {
-    #"gpt35-0125": ["gpt-5.1-chat-latest", "https://api.chatanywhere.tech", "sk-cfBnOB8k2J62TQwg0FWwXM16oqKYhp5vhm4ALbOw9dUzOBoR"],
-    #"gpt35-0125": ["gpt-5.2", "https://api.jiekou.ai/openai", "sk_Ex6vmEzbqrzewncHNhaq5XvHb7cw-UObVMprIgHy4bI"],
-    #"gpt35-0125": ["qwen3-coder", "http://localhost:11434/v1", "ollama"],
-    #"gpt35-0125": ["deepseek-ai/DeepSeek-V3.2-Exp", "https://api.siliconflow.cn/v1", "sk-asuoigwfjoacuhwehjkbanwbuoutwkdlrxkegqwfnohtglzl"],
-    "gpt35-0125": ["deepseek-chat", "https://api.deepseek.com", "sk-86a1b28114784618953cbd33d6fd4ae0"]
+    "gpt35-0125": ["qwen3-coder", "http://localhost:11434/v1", "ollama"],
 }
 
 

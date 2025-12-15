@@ -44,12 +44,12 @@ class InferLLMGrouping:
             self.prompt_variable_advice = (
                 "# Advices on variables:\n"
                 "- Common variables include numbers, version identifiers, IP addresses, URLs, file paths (including file names and directories), booleans, hexadecimal values, job IDs, and usernames.\n"
-                "- When possible, label the entire token as a single variable. For example, replace `job_123456` with `{job_id}`, rather than `job_{job_id}`.\n"
+                "- Aim to label the entire token in a single variable. For example, replace `job-123456` with `{job_id}`, rather than `job-{job_id}`.\n"
                 "- Full directories including the filename, and complex URLs (with server address or domain) must be recognized and treated as a single variable.\n"
                 "- For a key=value pattern, if the value is not a complex structure, the value should be treated as a variable.\n"
                 "- All types listed are variables, even if identical across multiple logs. **Strictly apply the corresponding `{variable_type}` replacement whenever a substring matches any listed type.**\n"
                 "# Advices on non-variables:\n"
-                "- Error types, Java exceptions, and detailed commands are not dynamic variables, as they contain essential information.\n"
+                "- Error types, Java exceptions, and specific commands are not dynamic variables, as they contain essential information.\n"
                 "- Specific action or status words are not dynamic variables.\n"
             )
         else:
@@ -211,7 +211,7 @@ class InferLLMGrouping:
                 processed2gpt[t['post_process']] = (t['template'], logs[idx])
         # lezhang.thu - end
         return best_template, query_time, gpt_templates[0][
-            'template'], templates  #, processed2gpt
+            'template'], templates , processed2gpt
 
     def match_log_pattern(self, template: str, log: str) -> bool:
         """
@@ -258,8 +258,7 @@ class InferLLMGrouping:
             return False, message, regex
         return False, message, regex
 
-    #def improve_template(self, logs, template, raw_template):
-    def improve_template(self, logs, template):
+    def improve_template(self, logs, template, raw_template):
         system_prompt = (
             "You are an assistant designed to refine a given template based on a set of logs. "
             "Your goal is to optimize the template so that it matches as many logs as possible."
@@ -359,11 +358,11 @@ class InferLLMGrouping:
         #query = "Log[1]: `{}`".format(logs[0])
         query += '\nTemplate: `{}`'.format(template)
         # lezhang.thu - start
-        #if template == '':
-        #    msg = 'Previously tried template: `{}`\n(forget about the emtpy template and the error message; try to improve over this (too general) template; we need at least one semantically meaningful natural-language word)'.format(
-        #        raw_template)
-        #    print(msg)
-        #    query += '\n{}'.format(msg)
+        if template == '':
+            msg = 'Previously tried template: `{}`\n(forget about the emtpy template and the error message; try to improve over this (too general) template; we need at least one semantically meaningful natural-language word)'.format(
+                raw_template)
+            print(msg)
+            query += '\n{}'.format(msg)
         # lezhang.thu - end
         messages.append({"role": "user", "content": query})
         _ = self.get_response_fallback(messages, temperature=.1)
