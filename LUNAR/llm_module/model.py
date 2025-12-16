@@ -28,46 +28,29 @@ class InferLLMGrouping:
         self.response = ""
 
         self.system_prompt = (
-            "You are a log parsing assistant for the cloud reliability team, "
-            "skilled in identifying dynamic values of variables/parameters in logs. "
-            "The value is an actual manifestation of the variables in original logging statements.\n"
-        )
+            "You are the Cloud Reliability team's Log Parsing Assistant.")
         self.prompt_base_requirements = (
             "# Basic Requirements:\n"
-            "- I will provide multiple log messages, each delimited by backticks.\n"
-            "- You must identify and extract all dynamic variables (some variables are identical across logs, but they are still variables. Please see variable types below) in each log with {placeholder} and output static log templates.\n"
-            "- Identify the semantics of variables and compare the differences between logs to identify potential dynamic variables if they belong to the same template.\n"
-            #"- Preserve any dynamic variables already marked by `<*>` or `{placeholder}`.\n"
-            "- Convert every `<*>` (these `<*>` are already variables) in the log into `{variable}`.\n"
-            #"- Pay attention to the slightly different strings among logs, which have high possibility to be dynamic variable.\n"
-            "- Do not convert non-variables, especially when only one log is presented in the group.\n"
+            "- You will receive multiple log messages, each delimited by backticks.\n"
+            "- Identify and replace all dynamic variables in each log with a standardized {placeholder} token, then output the static log templates.\n"
+            "- Determine variable semantics and compare differences across logs to accurately identify dynamic variables.\n"
+            "- Convert every occurrence of the `<*>` variable in the log into the standardized token `{variable}`. Additionally, if `<*>` appears within a literal string that matches a variable category, then, label the entire literal string as a variable.\n"
+            "- Do not convert non-variables, particularly when only a single log is being parsed.\n"
             "- Paths or directories should **ALWAYS** be labeled as variables, **regardless of whether they share prefixes**. Paths or directories are processed as complete tokens, rather than substrings.\n"
             "- The above rule on labeling paths or directories are MANDOTORY. PLEASE TAKE IT SERIOUSLY!!!\n"
         )
-        if "SimpleRequirements" in self.prompt:
-            self.prompt_base_requirements = (
-                "# Basic Requirements:\n"
-                "- I want you to act like an expert in log parsing.\n"
-                "- I will give you a log message wrapped by backticks.\n"
-                "- Your task is to identify all the dynamic variables in logs, replace them with {variables}, and output a static log template.\n"
-                "- Please print the input log's template wrapped by backticks.\n"
-            )
-
         if "NoAdvice" not in self.prompt:
             self.prompt_variable_advice = (
                 "# Advices on variables:\n"
-                "- Common variables: numbers, IP addresses, **URLs**, file paths, directories, hex values, usernames, etc.\n"
-                "- Full directory with filename, complex url with server address or domain should be recognize as one variable.\n"
+                "- Common variables include numbers, version identifiers, IP addresses, URLs, file paths (including file names and directories), booleans, hexadecimal values, job IDs, and usernames.\n"
+                "- Aim to label the entire token as a single variable. For example, replace `job-123456` with `{job_id}`, rather than `job-{job_id}`.\n"
+                "- Full directories including the filename, and complex URLs (with server address or domain) must be recognized and treated as a single variable.\n"
                 "- For dictionary structures, including recursively nested dictionaries, treat all values as variables, even if they are identical across logs. This rule overrides all other rules.\n"
-                #"- A very long (of length 10 or greater) token (assuming the log is split by whitespace) is likely to be a variable.\n"
-                "- All of the types listed above are variables, even if they are identical across multiple logs. **Please take the requirements seriously! If the substring (surrounded by whitespaces) falls into these types, mark them as {variable_type}, where variable_type is the corresponding type!**\n"
+                "- All types listed are variables, even if identical across multiple logs. **Strictly apply the corresponding `{variable_type}` replacement whenever a substring matches any listed type.**\n"
                 "# Advices on non-variables:\n"
-                "- Error messages/types, java exceptions, detailed commands or interrupted messages are NOT dynamic variables as they contain important information.\n"
-                "- Specific actions or status words are NOT dynamic variables.\n"
-                #"For patterns like `a=b`: `a` typically is NOT a variable, but `b` is.\n"
-                #"However, if `b` is missing, i.e., only `a=`, then, do NOT write `a={variable}`.\n"
-                #"Plz NOT use {variable} for representing an empty substring. E.g., `a=` should NOT be converted into `a={variable}`.\n"
-                #"- Avoid labeling multiple words together as one variable.\n"
+                "- Java exceptions\n"
+                "- Linux display commands\n"
+                #"- Specific action or status words are not dynamic variables.\n"
             )
         else:
             self.prompt_variable_advice = ""
@@ -81,12 +64,12 @@ class InferLLMGrouping:
 
         if "NoOutputConstraint" not in self.prompt:
             self.prompt_output_constraint = (
-                "# Output Constraints: \n"
-                "- For each log line, output corresponding log template starting with LogTemplate[idx], no other line break. \n"
-                "- Each input log's template is delimited by backticks. \n"
-                "- Examples:\n"
-                "  LogTemplate[1]: `this is log template 1`\n"
-                "  LogTemplate[2]: `this is log template 2`\n")
+                "# Output Constraints:\n"
+                "- Each generated template is delimited by backticks.\n"
+                "- **Example Format:**\n"
+                #"  Justification: <A concise, one-sentence justification for the chosen labeling.>\n"
+                "  LogTemplate[1]: `template`\n"
+                "  LogTemplate[2]: `template`\n")
         else:
             self.prompt_output_constraint = ""
 
@@ -98,19 +81,9 @@ class InferLLMGrouping:
         self.instruction += (
             "# NON-Variable Examples (these types of strings should NOT be replaced by {variaible_type}): \n"
             "- `java.io.FileNotFoundException`\n"
-            "- `[auth]`\n"
-            #"- `a` in `a=`, `a:` etc., i.e., strings preceding `=` or `:`\n"
-            #"- those messages (e.g., `this is an error`) containing more than two words when splitting w.r.t. whitespace\n"
-            #"- `pwd`, `ls`, `sshd` (Linux commands)\n"
-            #"- `worker.jni:onShutdown` -> `{configuration_reference}`\n"
-            #"- `HTTP/1.1` `HTTP/1.0` -> `{protocol_and_version}`\n"
-        )
+            "- `[auth]`\n")
         # lezhang.thu - end
         self.instruction += self.prompt_output_constraint
-        self.instruction += (
-            #"AVOID labeling MULTIPLE CONSECUTIVE words TOGETHER as a SINGLE variable (e.g., error/interruption messages consisting of multiple words).\n"
-            "Hint: For extracting the template, the first step is to replace the typical variable strings within the logs by {variable_type} before anything."
-        )
 
         print("======================== Prompt ========================")
         print(self.prompt)
@@ -442,7 +415,7 @@ class InferLLMGrouping:
         return post_process_template(logs[0], [])[0]
 
     def extract_and_post_process(self, logs, response):
-        gpt_templates = BatchExtract.extract(response)
+        gpt_templates = BatchExtract.extract(response, len(logs))
 
         # replace null template with previous template
         gpt_templates = self.make_up_template(logs, gpt_templates)
