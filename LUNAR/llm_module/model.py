@@ -359,7 +359,8 @@ class InferLLMGrouping:
         query += '\nTemplate: `{}`'.format(template)
         # lezhang.thu - start
         if template == '':
-            if raw_template.count("<*>") > 50:
+            if post_process_template(raw_template).count("<*>") > 50:
+                raw_template = post_process_template(raw_template)
                 msg = (
                     "Previously attempted template:\n"
                     "  `{}`\n\n"
