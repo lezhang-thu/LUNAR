@@ -359,8 +359,17 @@ class InferLLMGrouping:
         query += '\nTemplate: `{}`'.format(template)
         # lezhang.thu - start
         if template == '':
-            msg = 'Previously tried template: `{}`\n(forget about the emtpy template and the error message; try to improve over this (too general) template; we need at least one semantically meaningful natural-language word)'.format(
-                raw_template)
+            if raw_template.count("<*>") > 50:
+                msg = (
+                    "Previously attempted template:\n"
+                    "  `{}`\n\n"
+                    "Notes:\n"
+                    "- Forget about the empty template and the error message.\n"
+                    "- Refine this template: it currently uses too many `<*>` placeholders. Where possible, merge them."
+                ).format(raw_template)
+            else:
+                msg = 'Previously tried template: `{}`\n(forget about the emtpy template and the error message; try to improve over this (too general) template; we need at least one semantically meaningful natural-language word)'.format(
+                    raw_template)
             print(msg)
             query += '\n{}'.format(msg)
         # lezhang.thu - end
