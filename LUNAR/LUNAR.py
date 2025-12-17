@@ -284,9 +284,13 @@ class LUNARParser(BaseParser):
         counter = 0
 
         # lezhang.thu@gmail.com - start
-        required_log = processed2gpt[template][1]
-        gpt_raw = re.sub(r'\{[A-Za-z0-9_-]+\}', '<*>',
-                         processed2gpt[template][0])
+        required_log = processed2gpt[template][
+            1] if template in processed2gpt else next(
+                iter(processed2gpt.values()))[1]
+        gpt_raw = re.sub(
+            r'\{[A-Za-z0-9_-]+\}', '<*>',
+            processed2gpt[template][0] if template in processed2gpt else next(
+                iter(processed2gpt.values()))[0])
         while not update_success and counter < 3:
             llm_template = self.llm.improve_template(
                 logs_to_query_regex,
