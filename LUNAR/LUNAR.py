@@ -100,8 +100,9 @@ class BaseParser:
                     update_num = self.clusters.update_logs_by_indexes(
                         new_template, cluster_id, insert_indexes)
 
-                    del self.examples[self.post2template[similar_template]]
-                    del self.post2template[similar_template]
+                    if similar_template in self.post2template:
+                        del self.examples[self.post2template[similar_template]]
+                        del self.post2template[similar_template]
 
                     if new_template != template:
                         _, update_num, updated_indexes = self.clusters.update_logs_with_map(
