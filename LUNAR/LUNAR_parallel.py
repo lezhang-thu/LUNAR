@@ -175,7 +175,7 @@ class LUNARParserParallel(BaseParser):
             "========================================================================================\n\n"
         )
 
-    def non_emtpy(self, hyperbucket_ID):
+    def non_empty(self, hyperbucket_ID):
         return self.clusters.non_empty(hyperbucket_ID)
 
     def _to_map(self, template, raw_format, log):
@@ -206,7 +206,6 @@ class LUNARParserParallel(BaseParser):
         template, _, _, all_templates, processed2gpt = self.llm.parsing_log_templates(
             logs_to_query_regex,
             examplars,
-            reparse=reparse,
         )
         print("\t============ Aggregate ====================")
         print("\tAggregated Template: ", template)
