@@ -141,8 +141,10 @@ class LUNARParserParallel(BaseParser):
             self.dir_in, f"{logName}_{self.data_type}.log_structured.csv")
         print('Parsing file: ' + log_path)
         self.clusters.load_data(pd.read_csv(log_path), log_path)
+        time_start_after_load = time.time()
         logs_grouped = self.clusters.clustering()
         self.initialize_template_database()
+        return time_start_after_load
 
     def parse(self, hyperbucket_ID):
         # Sample logs to query

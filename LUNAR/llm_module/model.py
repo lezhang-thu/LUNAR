@@ -96,11 +96,7 @@ class InferLLMGrouping:
 
         return prompt
 
-    def get_prompt_direct(self,
-                          logs,
-                          exemplars=None,
-                          prev_templates=None,
-                          proposal=None):
+    def get_prompt_direct(self, logs, exemplars=None, proposal=None):
         # print(instruction)
         messages = [
             {
@@ -135,16 +131,6 @@ class InferLLMGrouping:
         #        answer_template.format(*examplar_templates)
         #    })
 
-        #if len(prev_templates) > 0:
-        #    wrong_alert = ''
-        #    wrong_alert += (
-        #        'Before parsing, we list several *faulty* templates:')
-        #    for t_x in prev_templates:
-        #        wrong_alert += '\n`{}`'.format(t_x)
-        #    messages.append({"role": "user", "content": wrong_alert})
-        #    print('wrong_alert:\n{}'.format(wrong_alert))
-        #    messages.append({"role": "assistant", "content": "OK."})
-
         query = ""
         if len(exemplars) > 0:
             query = "Example:\n"
@@ -178,12 +164,10 @@ class InferLLMGrouping:
         # query llm for response
         messages = self.get_prompt_direct(logs,
                                           exemplars=exemplars,
-                                          prev_templates=reparse,
                                           proposal=proposal)
 
-        temperature = 0.7 if len(reparse) > 0 else 0.0
         time1 = time.time()
-        _ = self.get_response_fallback(messages, temperature=temperature)
+        _ = self.get_response_fallback(messages)
         query_time = time.time() - time1
 
         # print response
@@ -376,32 +360,13 @@ class InferLLMGrouping:
             query += '\n{}'.format(msg)
         # lezhang.thu - end
         messages.append({"role": "user", "content": query})
-        _ = self.get_response_fallback(messages, temperature=.1)
+        _ = self.get_response_fallback(messages)
         print('#' * 30)
         print('Improving...')
         print(self.response)
         t = re.search(r"ImprovedTemplate:\s*`([^`]*)`", self.response)
         if t is None: return ''
         else: return t.group(1)
-
-    def get_response(self, messages, temperature=0.0):
-        answers = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=temperature,
-            seed=1603,
-            n=1,
-            stop=None,
-        )
-        self.usages.append({
-            "query": answers.usage.prompt_tokens,
-            "response": answers.usage.completion_tokens
-        })
-        self.response = [
-            response.message.content for response in answers.choices
-            if response.finish_reason != 'length'
-        ][0]
-        return self.response
 
     def get_response_fallback(self, messages, temperature=0.0):
         retry_times = 0

@@ -194,7 +194,8 @@ class BaseClustering:
             ).tolist()
             print("len(candidate_logs): {}".format(len(candidate_logs)))
             cluster_id = current_logs_bucket["cid2"].iloc[0]
-            return cluster_id, least_similar(candidate_logs, 5)
+            #return cluster_id, least_similar(candidate_logs, 5)
+            return cluster_id, randomly_select(candidate_logs, 5)
 
 
 class TopKTokenClustering(BaseClustering):
@@ -446,3 +447,7 @@ def least_similar(candidate_logs, n_anchors=5):
                 min_sims[i] = min(min_sims[i], sims_new[i])
 
     return anchors
+
+
+def randomly_select(candidate_logs, k=5):
+    return random.sample(candidate_logs, min(k, len(candidate_logs)))

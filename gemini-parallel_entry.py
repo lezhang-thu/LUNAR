@@ -54,15 +54,14 @@ if __name__ == "__main__":
     )
 
     # Hierarchical Sharding
-    parser.init_cluster(args.test_dataset)
-    time_start_after_load = time.time()
+    time_start_after_load = parser.init_cluster(args.test_dataset)
 
     hyperbucket_queue = queue.Queue()
     _ = parser.clusters.clustering()
     for k in range(len(parser.clusters.update_map_parent2child)):
         hyperbucket_queue.put(k)
 
-    num_threads = 8 
+    num_threads = 8
     # 3. Start the worker threads
     threads = []
     for i in range(num_threads):
