@@ -166,17 +166,17 @@ class BaseClustering:
         )
         return total_updated
 
-    def non_emtpy(self, hyperbucket_ID):
-        children = self.update_map_child2parent[hyperbucket_ID]
+    def non_empty(self, hyperbucket_ID):
+        children = self.update_map_parent2child[hyperbucket_ID]
         for k in children:
-            if len(self.cluster[k]) > 0:
+            if len(self.clusters[k]) > 0:
                 return True
         return False
 
     def sample_hyperbucket(self, hyperbucket_ID):
-        children = self.update_map_child2parent[hyperbucket_ID]
+        children = self.update_map_parent2child[hyperbucket_ID]
         current_logs_bucket_id = max(children,
-                                     key=lambda i: len(self.cluster[i]))
+                                     key=lambda i: len(self.clusters[i]))
         current_logs_bucket = self.clusters[current_logs_bucket_id]
         print(
             f"Sample from current logs bucket: ID: {current_logs_bucket_id}, Len: {current_logs_bucket['length'].iloc[0]}, Bucket Size: {len(current_logs_bucket)}, Total Buckets: {len(self.clusters)}",
