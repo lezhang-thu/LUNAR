@@ -389,7 +389,8 @@ class BaseClustering:
             #return cluster_id, candidate_logs[:5], proposal_template
             #return cluster_id, candidate_logs[:5], None
             #t = compute_adaptive_sample_size(self.current_logs_bucket["length"].iloc[0], candidate_logs[0], 5)
-            return cluster_id, least_similar(candidate_logs, 5), None
+            #return cluster_id, least_similar(candidate_logs, 5), None
+            return cluster_id, randomly_select(candidate_logs, 5), None
 
             #anchor_log, candidate_logs = self.anchor_log_selection(
             #    self.current_logs_bucket["Content"].tolist(), method="first")
@@ -668,6 +669,7 @@ class TopKTokenClustering(BaseClustering):
         for idx, cluster in self.clusters.items():
             #_clusters = self.clustering_by_topk_tokens(cluster)
             _clusters = self.brain_cluster(cluster)
+            #_clusters = [cluster]
             if idx == 2:
                 # debug
                 for _ in _clusters:
@@ -1076,6 +1078,10 @@ def least_similar(candidate_logs, n_anchors=5):
 #    sorted_keys = sorted(zipped, key=lambda k: k[0])
 #    x_extracted = [k[1] for k in sorted_keys[:4]]
 #    return [anchor_log] + x_extracted
+
+
+def randomly_select(candidate_logs, k=5):
+    return random.sample(candidate_logs, min(k, len(candidate_logs)))
 
 
 def sampling_from_sorted_list(anchor_log,
