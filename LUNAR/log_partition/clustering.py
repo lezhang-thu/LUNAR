@@ -350,7 +350,7 @@ class BaseClustering:
                              key=lambda k: len(self.clusters[k]))
         # debug
         if False:
-            max_cluster_id = 134
+            max_cluster_id = 17
             #print(self.clusters[max_cluster_id]['_feature'].iloc[0])
             print(self.clusters[max_cluster_id].drop_duplicates(
                 subset='Content', keep='last'))
@@ -389,8 +389,8 @@ class BaseClustering:
             #return cluster_id, candidate_logs[:5], proposal_template
             #return cluster_id, candidate_logs[:5], None
             #t = compute_adaptive_sample_size(self.current_logs_bucket["length"].iloc[0], candidate_logs[0], 5)
-            #return cluster_id, least_similar(candidate_logs, 5), None
-            return cluster_id, randomly_select(candidate_logs, 5), None
+            return cluster_id, get_diverse_anchors(candidate_logs, 3), None
+            #return cluster_id, randomly_select(candidate_logs, 5), None
 
             #anchor_log, candidate_logs = self.anchor_log_selection(
             #    self.current_logs_bucket["Content"].tolist(), method="first")
@@ -1029,42 +1029,89 @@ def pad_list(lst, size):
     return lst
 
 
-def least_similar(candidate_logs, n_anchors=5):
+def get_diverse_anchors(candidate_logs, n_anchors=5):
+    """
+    Selects n_anchors from candidate_logs that are least similar to each other
+    (maximally diverse).
+
+    Algorithm: Greedy Max-Min
+    1. For every point, track its similarity to its *nearest* selected anchor.
+    2. Pick the point that has the *lowest* similarity to its nearest anchor.
+    """
     if len(candidate_logs) <= 1:
         return candidate_logs
 
     n = len(candidate_logs)
-    anchors = [candidate_logs[0]]
-    selected_indices = {0}
 
-    # initialize min_sims with similarity to the first anchor
-    min_sims = calculate_jaccard_one_to_many(candidate_logs[0], candidate_logs)
-    min_sims[0] = math.inf  # prevent re-selecting anchor 0
+    # --- Optimization 1: Pre-compute sets ---
+    # Convert strings to sets once to avoid repeated splitting/hashing.
+    candidate_sets = [set(log.split()) for log in candidate_logs]
+
+    # Indices of the chosen anchors
+    anchor_indices = [0]
+    selected_indices_set = {0}
+
+    # Internal helper to calculate Jaccard of one anchor against all candidates
+    def compute_jaccard_vector(anchor_idx):
+        anchor_set = candidate_sets[anchor_idx]
+        len_anchor = len(anchor_set)
+        sims = []
+
+        for other_set in candidate_sets:
+            # --- Optimization 2: Fast Union ---
+            # Union = len(A) + len(B) - Intersection
+            intersection_size = len(anchor_set.intersection(other_set))
+            union_size = len_anchor + len(other_set) - intersection_size
+
+            if union_size == 0:
+                sims.append(0.0)
+            else:
+                sims.append(intersection_size / union_size)
+        return sims
+
+    # Initialize state with the first anchor (index 0)
+    # This list tracks, for every candidate, the HIGHEST similarity score
+    # it has with any of the currently selected anchors.
+    max_sim_to_closest_anchor = compute_jaccard_vector(0)
+
+    # Mark the first anchor as "infinite" similarity so it isn't picked again.
+    # (Since we look for the MIN value later, INF effectively removes it from consideration)
+    max_sim_to_closest_anchor[0] = math.inf
 
     def random_argmin(values):
+        """Returns a random index among those with the minimum value."""
         min_val = min(values)
+        # Find all indices that share this minimum value
         candidates = [i for i, v in enumerate(values) if v == min_val]
         return random.choice(candidates)
 
+    # --- Main Selection Loop ---
     for _ in range(1, min(n_anchors, n)):
-        # find least similar log (lowest min similarity)
-        #next_idx = min(range(n), key=lambda i: min_sims[i])
-        next_idx = random_argmin(min_sims)
-        anchors.append(candidate_logs[next_idx])
-        selected_indices.add(next_idx)
 
-        # compute similarity to the new anchor
-        sims_new = calculate_jaccard_one_to_many(candidate_logs[next_idx],
-                                                 candidate_logs)
+        # 1. Selection Step:
+        # Find the candidate that is *least* similar to the current group of anchors.
+        # i.e., Minimize the Maximum similarity.
+        next_idx = random_argmin(max_sim_to_closest_anchor)
 
-        # update min similarities
+        anchor_indices.append(next_idx)
+        selected_indices_set.add(next_idx)
+
+        # 2. Update Step:
+        # Calculate similarity of all candidates to this NEW anchor
+        new_anchor_sims = compute_jaccard_vector(next_idx)
+
+        # Update the tracker
         for i in range(n):
-            if i in selected_indices:
-                min_sims[i] = math.inf
+            if i in selected_indices_set:
+                max_sim_to_closest_anchor[i] = math.inf
             else:
-                min_sims[i] = min(min_sims[i], sims_new[i])
+                # We update the score if the NEW anchor is closer (more similar)
+                # to candidate i than any previous anchor was.
+                if new_anchor_sims[i] > max_sim_to_closest_anchor[i]:
+                    max_sim_to_closest_anchor[i] = new_anchor_sims[i]
 
-    return anchors
+    # Map selected indices back to original strings
+    return [candidate_logs[i] for i in anchor_indices]
 
 
 #def least_similar(candidate_logs):
