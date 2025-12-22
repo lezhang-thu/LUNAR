@@ -95,14 +95,18 @@ if __name__ == "__main__":
                                   otc=args.otc,
                                   complex=args.complex,
                                   frequent=args.frequent)
-    evaluator(args.test_dataset,
-              args.data_type,
-              input_dataset_dir,
-              output_dataset_dir,
-              result_file,
-              otc=args.otc,
-              complex=args.complex,
-              frequent=args.frequent)
+    evaluator(
+        args.test_dataset,
+        args.data_type,
+        input_dataset_dir,
+        output_dataset_dir,
+        result_file,
+        otc=args.otc,
+        complex=args.complex,
+        frequent=args.frequent,
+        groundtruth=parser.gt_parsed,
+        parsedresult=parser.gpt_parsed,
+    )
     post_average(
         os.path.join(args.output_dir, result_file),
         os.path.join(

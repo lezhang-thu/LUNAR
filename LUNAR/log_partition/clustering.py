@@ -389,7 +389,7 @@ class BaseClustering:
             #return cluster_id, candidate_logs[:5], proposal_template
             #return cluster_id, candidate_logs[:5], None
             #t = compute_adaptive_sample_size(self.current_logs_bucket["length"].iloc[0], candidate_logs[0], 5)
-            return cluster_id, get_diverse_anchors(candidate_logs, 3), None
+            return cluster_id, get_diverse_anchors(candidate_logs, 5), None
             #return cluster_id, randomly_select(candidate_logs, 5), None
 
             #anchor_log, candidate_logs = self.anchor_log_selection(

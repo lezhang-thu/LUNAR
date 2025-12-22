@@ -46,10 +46,11 @@ class InferLLMGrouping:
                 "- Aim to label the entire token as a single variable. For example, replace `job-123456` with `{job_id}`, rather than `job-{job_id}`.\n"
                 "- Full directories including the filename, and complex URLs (with server address or domain) must be recognized and treated as a single variable.\n"
                 "- For dictionary structures, including recursively nested dictionaries, treat all values as variables, even if they are identical across logs. This rule overrides all other rules.\n"
+                #"- If a single token (not a phrase) is an especially long (>10 characters), highly complex noun (e.g., configuration property names) and varies across logs at the same position, replace the token with `{complex_str}`.\n"
                 "- All types listed are variables, even if identical across multiple logs. **Strictly apply the corresponding `{variable_type}` replacement whenever a substring matches any listed type.**\n"
                 "# Advices on non-variables:\n"
                 "- Java exceptions\n"
-                "- Linux display commands\n"
+                "- display command lines\n"
                 #"- Specific action or status words are not dynamic variables.\n"
             )
         else:
@@ -66,6 +67,10 @@ class InferLLMGrouping:
             self.prompt_output_constraint = (
                 "# Output Constraints:\n"
                 "- Each generated template is delimited by backticks.\n"
+                #"- Example format for the case where only a single template exists:\n"
+                #"  LogTemplate: `template`\n"
+                #"- Present the LogTemplate at the end of the response.\n"
+                #"- Example format for the case where multiple templates exist:\n"
                 "- **Example Format:**\n"
                 #"  Justification: <A concise, one-sentence justification for the chosen labeling.>\n"
                 "  LogTemplate[1]: `template`\n"
@@ -151,9 +156,7 @@ class InferLLMGrouping:
             query += brain_proposal
         messages.append({"role": "user", "content": query})
         # self.messages = messages
-        print("\t============  Query  ====================")
-        print("\n".join(["\t" + i for i in query.split('\n')]))
-        return messages
+        return messages, query
 
     def parsing_log_templates(self,
                               logs,
@@ -162,14 +165,17 @@ class InferLLMGrouping:
                               reparse=None,
                               proposal=None):
         # query llm for response
-        messages = self.get_prompt_direct(logs,
-                                          exemplars=exemplars,
-                                          proposal=proposal)
+        messages, query = self.get_prompt_direct(logs,
+                                                 exemplars=exemplars,
+                                                 proposal=proposal)
 
         time1 = time.time()
         _ = self.get_response_fallback(messages)
         query_time = time.time() - time1
 
+        # print query
+        print("\t============  Query  ====================")
+        print("\n".join(["\t" + i for i in query.split('\n')]))
         # print response
         print("\t============ Response ====================")
         print(self.response)
