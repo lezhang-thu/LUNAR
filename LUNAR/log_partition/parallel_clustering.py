@@ -266,6 +266,7 @@ class TopKTokenClustering(BaseClustering):
         for idx, cluster in self.clusters.items():
             #_clusters = self.clustering_by_topk_tokens(cluster)
             _clusters = self.brain_cluster(cluster)
+            #_clusters = [cluster]
             if idx == 2:
                 # debug
                 for _ in _clusters:
@@ -297,96 +298,75 @@ class TopKTokenClustering(BaseClustering):
         return self.clusters
 
     def brain_cluster(self, df):
-        # 1. Split "Content" into tokens
-        token_lists = df["Content"].str.split()
+        # 1. Identify Unique Content
+        # We operate solely on the unique patterns first to save computation
+        unique_content = df["Content"].drop_duplicates()
+
+        # 2. Split into tokens (Only for unique rows)
+        unique_token_lists = unique_content.str.split()
 
         # Assert same token length
-        lengths = token_lists.str.len()
-        assert lengths.nunique(
-        ) == 1, "All rows must have same number of tokens"
+        # (We check lengths on unique_token_lists; if unique ones are consistent, all are)
+        lengths = unique_token_lists.str.len()
+        if len(lengths) > 0:
+            assert lengths.nunique(
+            ) == 1, "All rows must have same number of tokens"
 
-        # 2. Build token matrix for ALL rows (original df)
-        token_df = pd.DataFrame(token_lists.tolist())
-
-        # 3. Build token matrix for UNIQUE Content only (for frequency computation)
-        unique_content = df["Content"].drop_duplicates()
-        # debug
-        t = lengths.iloc[0]
-        if False and t == 3:
-            print('here')
-            print(len(unique_content))
-            print(unique_content)
-        unique_token_lists = unique_content.str.split()
+        # 3. Build Token Matrix for UNIQUE rows
+        # We use .reset_index(drop=True) on the temporary dataframe to align
+        # the numpy arrays later, while keeping unique_content mapping safe.
         unique_token_df = pd.DataFrame(unique_token_lists.tolist())
 
-        # 4. Compute column-wise token frequencies ONLY on unique rows
+        # 4. Compute column-wise token frequencies
+        # (This logic is inherently based on unique patterns per your original code)
         freq_lookup = {}
         for col in unique_token_df.columns:
             freq_lookup[col] = unique_token_df[col].value_counts().to_dict()
-            #freq_lookup[col] = token_df[col].value_counts().to_dict()
 
-        # 5. Map frequencies back to ALL rows (including duplicates)
-        freq_df = pd.DataFrame({
-            col: token_df[col].map(freq_lookup[col])
-            for col in token_df.columns
-        })
-        if False and t == 3:
-            x_df = pd.DataFrame({
-                col: unique_token_df[col].map(freq_lookup[col])
-                for col in token_df.columns
-            })
-            freq_df = x_df
-            print(x_df)
+        # 5. Map frequencies to the UNIQUE Matrix
+        unique_freq_df = unique_token_df.copy()
+        for col in unique_token_df.columns:
+            unique_freq_df[col] = unique_token_df[col].map(freq_lookup[col])
 
-        # 6. For each row (in original df), compute the feature tokens
-        features = []
-        for i, row in freq_df.iterrows():
-            freqs = row.tolist()
-            # most common frequency value
-            #most_common_freq = Counter(freqs).most_common(1)[0][0]
-            if True:
-                freq_counts = Counter(freqs)
-                max_count = max(freq_counts.values())
-                tied_freqs = [
-                    f for f, c in freq_counts.items() if c == max_count
-                ]
-                most_common_freq = max(tied_freqs)
-                if most_common_freq == 1:
-                    most_common_freq = max(freqs)
-            if False and t == 3:
-                print(freqs)
-                print(most_common_freq)
-            # select tokens whose freq == most_common_freq
-            tokens = [
-                token_df.iloc[i, j] for j, f in enumerate(freqs)
-                if f == most_common_freq
-            ]
-            features.append(
-                tuple(tokens))  # tuple makes it hashable for grouping
+        # 6. Compute features for UNIQUE rows
+        # We extract values to numpy arrays for faster iteration than .iterrows()
+        token_values = unique_token_df.values
+        freq_values = unique_freq_df.values
 
-        # 7. Attach feature to df
-        #if t == 3: exit(0)
+        unique_features = []
+
+        # Iterate through unique patterns only
+        for i in range(len(token_values)):
+            tokens = token_values[i]
+            freqs = freq_values[i]
+
+            # --- Original Logic Logic ---
+            freq_counts = Counter(freqs)
+            max_count = max(freq_counts.values())
+
+            # Tie-breaking logic
+            tied_freqs = [f for f, c in freq_counts.items() if c == max_count]
+            most_common_freq = max(tied_freqs)
+
+            if most_common_freq == 1:
+                most_common_freq = max(freqs)
+
+            # Select tokens corresponding to the winner frequency
+            # zip is faster here than index lookup
+            feature_tokens = tuple(t for t, f in zip(tokens, freqs)
+                                   if f == most_common_freq)
+            unique_features.append(feature_tokens)
+            # ----------------------------
+
+        # 7. Map features back to the Original DataFrame
+        # Create a hash map: { "Content String" : ("Feature", "Tuple") }
+        content_to_feature_map = dict(zip(unique_content, unique_features))
+
         df = df.copy()
-        df["_feature"] = features
+        df["_feature"] = df["Content"].map(content_to_feature_map)
 
         # 8. Split df by identical features
-        grouped_dfs = [
-            #group.drop(columns="_feature")
-            group for _, group in df.groupby("_feature")
-        ]
-
-        # lezhang.thu - start
-        #groups = [group for _, group in df.groupby("_feature")]
-
-        #singleton_groups = [g for g in groups if len(g) == 1]
-        #multi_groups = [g for g in groups if len(g) > 1]
-
-        #if singleton_groups:
-        #    merged_singletons = pd.concat(singleton_groups, ignore_index=True)
-        #    multi_groups.append(merged_singletons)
-
-        #grouped_dfs = [g.drop(columns="_feature") for g in multi_groups]
-        # lezhang.thu - end
+        grouped_dfs = [group for _, group in df.groupby("_feature")]
 
         return grouped_dfs
 
