@@ -47,8 +47,8 @@ class BaseParser:
     def save_results(self, log_name):
         to_path_logs = os.path.join(
             self.dir_out, f"{log_name}_{self.data_type}.log_structured.csv")
-        df_to_save = self.clusters.prepare_save_df()
-        df_to_save.to_csv(to_path_logs, index=False)
+        df_to_save = self.clusters.prepare_save_df(self.gt_parsed)
+        #df_to_save.to_csv(to_path_logs, index=False)
         print(f"Saved {log_name}_log_structured.csv to {to_path_logs}")
 
         to_path_templates = os.path.join(
@@ -60,8 +60,9 @@ class BaseParser:
         df_selected_sorted = df_templates.sort_values(by='EventId_numeric')
         df_selected_sorted = df_selected_sorted.drop('EventId_numeric', axis=1)
 
-        df_selected_sorted.to_csv(to_path_templates, index=False)
+        #df_selected_sorted.to_csv(to_path_templates, index=False)
         print(f"Saved {log_name}_log_templates.csv to {to_path_templates}")
+        self.gpt_parsed = df_to_save
 
     def validate_and_update_with_cluster_map_template_database(
             self, logs_to_query, template, cluster_id):
@@ -140,7 +141,8 @@ class LUNARParserParallel(BaseParser):
         log_path = os.path.join(
             self.dir_in, f"{logName}_{self.data_type}.log_structured.csv")
         print('Parsing file: ' + log_path)
-        self.clusters.load_data(pd.read_csv(log_path), log_path)
+        self.gt_parsed = pd.read_csv(log_path)
+        self.clusters.load_data(self.gt_parsed, log_path)
         time_start_after_load = time.time()
         logs_grouped = self.clusters.clustering()
         self.initialize_template_database()
@@ -157,7 +159,8 @@ class LUNARParserParallel(BaseParser):
             update_success, _, _ = self.validate_and_update_with_cluster_map_template_database(
                 logs_to_query_regex, template, cluster_id)
         # lezhang.thu - start
-        if update_success and len(all_templates) > 0:
+        #if update_success and len(all_templates) > 0:
+        if False:
             print(
                 "A good starting point. Try to use the remaining templates...")
             for x_template in all_templates:
