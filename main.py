@@ -34,7 +34,9 @@ if __name__ == "__main__":
 
     result_file = prepare_results(args.output_dir, otc=args.otc, complex=args.complex, frequent=args.frequent)
     evaluator(args.test_dataset, args.data_type, input_dataset_dir, output_dataset_dir, result_file,
-              otc=args.otc, complex=args.complex, frequent=args.frequent)
+              otc=args.otc, complex=args.complex, frequent=args.frequent,
+              groundtruth=parser.gt_parsed,
+              parsedresult=parser.gpt_parsed,)
     post_average(os.path.join(args.output_dir, result_file),
                  os.path.join(args.output_dir, f"LUNAR_{args.data_type}_complex={args.complex}_frequent={args.frequent}_{args.model}.csv"))
     print(f"Finish parsing logs: {args.test_dataset}")

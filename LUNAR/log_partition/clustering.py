@@ -106,23 +106,13 @@ class BaseClustering:
     def get_current_bucket_depth(self):
         return len(self.current_logs_bucket)
 
-    def prepare_save_df(self):
-        self.df_logs.assign(NewEventId="")
-        self.original_df_logs = pd.read_csv(self.log_path)
-        print(
-            f"Original df_logs: {self.original_df_logs.shape}, Clustering df_logs: {self.df_logs.shape}"
-        )
-        templates_set = []
-        for i, row in self.df_logs.iterrows():
-            if row['Template'] in templates_set:
-                template_id = templates_set.index(row['Template']) + 1
-            else:
-                templates_set.append(row['Template'])
-                template_id = len(templates_set)
-            self.df_logs.loc[i, 'NewEventId'] = f"E{template_id}"
+    def prepare_save_df(self, original_df_logs):
+        # factorize Template → 0..n-1
+        codes = self.df_logs["Template"].astype("category").cat.codes
+        self.df_logs["NewEventId"] = "E" + (codes + 1).astype(str)
+
         df = self.df_logs[["LineId", "Content", "NewEventId", "Template"]]
-        # assign the row "Content" of original df_logs to df
-        df["Content"] = self.original_df_logs["Content"]
+        df["Content"] = original_df_logs["Content"]
         df.columns = ["LineId", "Content", "EventId", "EventTemplate"]
         return df
 
