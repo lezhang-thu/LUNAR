@@ -159,8 +159,8 @@ class LUNARParserParallel(BaseParser):
             update_success, _, _ = self.validate_and_update_with_cluster_map_template_database(
                 logs_to_query_regex, template, cluster_id)
         # lezhang.thu - start
-        #if update_success and len(all_templates) > 0:
-        if False:
+        if update_success and len(all_templates) > 0:
+        #if False:
             print(
                 "A good starting point. Try to use the remaining templates...")
             for x_template in all_templates:

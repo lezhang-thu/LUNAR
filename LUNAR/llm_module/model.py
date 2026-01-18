@@ -42,7 +42,7 @@ class InferLLMGrouping:
         if "NoAdvice" not in self.prompt:
             self.prompt_variable_advice = (
                 "# Advices on variables:\n"
-                "- Common variables include numbers, version identifiers, IP addresses, URLs, file paths (including file names and directories), booleans, hexadecimal values, job IDs, and usernames.\n"
+                "- Common variables include numbers, version identifiers, IP addresses, URLs, file paths (including file names and directories), booleans, hexadecimal values, configuration keys, configuration property names, job IDs, and usernames.\n"
                 "- Aim to label the entire token as a single variable. For example, replace `job-123456` with `{job_id}`, rather than `job-{job_id}`.\n"
                 "- Full directories including the filename, and complex URLs (with server address or domain) must be recognized and treated as a single variable.\n"
                 "- For dictionary structures, including recursively nested dictionaries, treat all values as variables, even if they are identical across logs. This rule overrides all other rules.\n"
