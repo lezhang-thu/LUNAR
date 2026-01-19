@@ -14,7 +14,7 @@ from LUNAR.log_partition.clustering import TopKTokenClustering
 from LUNAR.log_partition.text_distance import calculate_jaccard_one_to_many
 from LUNAR.utils import write_json, get_max_retry, validate_template
 from LUNAR.utils import preprocess_log_for_query, verify_template_and_update
-from LUNAR.template_database import TemplateDatabase
+from LUNAR.purified_template_database import TemplateDatabase
 
 
 class BaseParser:
@@ -188,8 +188,7 @@ class LUNARParser(BaseParser):
                 update_success, update_num, _ = self.validate_and_update_with_cluster_map_template_database(
                     logs_to_query_regex, template, cluster_id)
             # lezhang.thu - start
-            #if update_success and len(all_templates) > 0:
-            if False:
+            if update_success and len(all_templates) > 0:
                 print(
                     "A good starting point. Try to use the remaining templates..."
                 )

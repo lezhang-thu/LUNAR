@@ -14,7 +14,7 @@ from LUNAR.log_partition.parallel_clustering import TopKTokenClustering
 from LUNAR.log_partition.text_distance import calculate_jaccard_one_to_many
 from LUNAR.utils import validate_template
 from LUNAR.utils import preprocess_log_for_query
-from LUNAR.template_database import TemplateDatabase
+from LUNAR.purified_template_database import TemplateDatabase
 
 
 class BaseParser:

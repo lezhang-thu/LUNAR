@@ -1,6 +1,5 @@
 import regex as re
-import sys
-#sys.path.append("..")
+import numpy as np
 from LUNAR.llm_module.post_process import post_process_template
 from LUNAR.utils import validate_template, verify_template_for_log_with_first_token
 
@@ -235,13 +234,10 @@ class TemplateDatabase:
         """
         template_tokens = split_template_naive(event_template)
         if not template_tokens or event_template == "<*>":
-            return False, event_template, None
-        if len(self.template_items) == 0:
+            return False, event_template, None, None
+        if len(self.template_items) == 0 or len(template_tokens) == 1:
             self._insert_template(event_template, indexes)
-            return False, event_template, None
-        if len(template_tokens) == 1:
-            self._insert_template(event_template, indexes)
-            return False, event_template, None
+            return False, event_template, None, None
 
         x_t = [split_template_naive(t) for t in self.template_list]
         coarse_similarities = [
@@ -249,30 +245,28 @@ class TemplateDatabase:
         ]
 
         # only compare with the most similar template
-        max_sim_idx = coarse_similarities.index(max(coarse_similarities))
-        if self._judge_template_merge_combine(event_template,
-                                              self.template_list[max_sim_idx]):
-            print(
-                f"[TemplateDB] Try Merge: `{event_template}` | `{self.template_list[max_sim_idx]}`"
-            )
+        max_sim_idx = np.argmax(coarse_similarities)
+        xyz = self.template_list[max_sim_idx]
+        if self._judge_template_merge_combine(event_template, xyz):
+            print(f"[TemplateDB] Try Merge: `{event_template}` | `{xyz}`")
             new_template, flag_merge_success = merge_template_by_star(
-                event_template, self.template_list[max_sim_idx])
+                event_template, xyz)
             if flag_merge_success:
-                insert_indexes = self._update_template(new_template, indexes,
-                                                       max_sim_idx)
+                insert_indexes = self.update_template(new_template, indexes,
+                                                      max_sim_idx)
                 self.template_items[new_template]['ori_templates'].append(
                     event_template)
                 print(f"[TemplateDB] Merged: -> `{new_template}`")
-                return True, new_template, insert_indexes
+                return True, new_template, insert_indexes, xyz
             else:
                 self._insert_template(event_template, indexes)
                 print(
                     f"[TemplateDB] Reject Merge, Remain Template: `{event_template}`"
                 )
-                return False, event_template, None
+                return False, event_template, None, xyz
         else:
             self._insert_template(event_template, indexes)
-            return False, event_template, None
+            return False, event_template, None, xyz
 
     def _judge_template_merge_combine(self, template1, template2, split=[" "]):
         """
