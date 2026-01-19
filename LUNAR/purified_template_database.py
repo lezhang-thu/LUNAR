@@ -147,6 +147,8 @@ def greedy_merge_two_vars_both_side(str1, str2):
     placeholder = "<*>"
     if str1 == "<*>" or str2 == "<*>":
         return "<*>"
+    else:
+        return False
     if not judge_var_token(str1, str2):
         return False
 
@@ -252,8 +254,8 @@ class TemplateDatabase:
             new_template, flag_merge_success = merge_template_by_star(
                 event_template, xyz)
             if flag_merge_success:
-                insert_indexes = self.update_template(new_template, indexes,
-                                                      max_sim_idx)
+                insert_indexes = self._update_template(new_template, indexes,
+                                                       max_sim_idx)
                 self.template_items[new_template]['ori_templates'].append(
                     event_template)
                 print(f"[TemplateDB] Merged: -> `{new_template}`")
