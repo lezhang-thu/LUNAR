@@ -46,7 +46,7 @@ class BaseParser:
         self.llm_params = llm_params
         self.cluster_params = cluster_params
         self.flag_update_template = True
-        self.template_database = {}
+        self.template_database = None
 
     def parse(self, logName):
         raise NotImplementedError
@@ -80,10 +80,8 @@ class BaseParser:
             update_success, update_num, updated_indexes = self.clusters.update_logs_with_map(
                 template, cluster_id)
             if update_success:
-                parent_cluster_id = self.clusters.update_map_child2parent[
-                    cluster_id]
-                need_update, new_template, insert_indexes, similar_template = self.template_database[
-                    parent_cluster_id].add_template(template, updated_indexes)
+                need_update, new_template, insert_indexes, similar_template = self.template_database.add_template(
+                    template, updated_indexes)
                 if need_update and validate_template(new_template):
                     update_num = self.clusters.update_logs_by_indexes(
                         new_template, cluster_id, insert_indexes)
@@ -95,9 +93,8 @@ class BaseParser:
                     if new_template != template:
                         _, update_num, updated_indexes = self.clusters.update_logs_with_map(
                             new_template, cluster_id)
-                        self.template_database[
-                            parent_cluster_id].update_indexes(
-                                new_template, updated_indexes)
+                        self.template_database.update_indexes(
+                            new_template, updated_indexes)
                         print(
                             f"[TemplateBaseUpdate] Match unparsed logs {update_num} with new template `{new_template}`"
                         )
@@ -304,7 +301,4 @@ class LUNARParser(BaseParser):
         return update_success, logs_to_query, logs_to_query_regex, template, cluster_id, wrong_template, t, processed2gpt
 
     def initialize_template_database(self):
-        for k, _df in self.clusters.clusters.items():
-            cid = _df["cid1"].iloc[0]
-            if cid not in self.template_database:
-                self.template_database[cid] = TemplateDatabase()
+        self.template_database = TemplateDatabase()
