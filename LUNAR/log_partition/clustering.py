@@ -11,7 +11,7 @@ from LUNAR.utils import verify_template_for_log_with_first_token
 from LUNAR.utils import preprocess_log_for_query
 from LUNAR.log_partition.text_distance import calculate_jaccard_one_to_many
 
-CHECK_CLUSTERS = [61, 46]
+CHECK_CLUSTERS = [19, 5]
 CHECK_CLUSTERS.reverse()
 
 

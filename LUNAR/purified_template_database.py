@@ -1,7 +1,6 @@
 import numpy as np
 import regex
-from LUNAR.llm_module.post_process import post_process_template
-from LUNAR.utils import validate_template, verify_template_for_log_with_first_token
+from LUNAR.llm_module.template_merger import LLMTemplateMerger
 
 
 def split_template_naive(template):
@@ -74,46 +73,47 @@ class TemplateDatabase:
         None (as the __init__ method is currently empty).
     """
 
-    def __init__(self):
+    def __init__(self, model, api_key, base_url):
         self.template_items = {}
-        self.template_list = []
+        self.tpl_llm = LLMTemplateMerger(model, api_key, base_url)
 
-    def add_template(self, event_template, indexes={}, relevant_templates=[]):
+    def add_template(self, event_template, indexes={}, llm_logs=[]):
         """
         Add a new template to the database.
 
         :param event_template: The log template to be added.
         :param indexes: A dictionary of indexes related to the template. Defaults to {}.
-        :param relevant_templates: A list of relevant templates. Defaults to [].
         """
-        template_tokens = split_template_naive(event_template)
-        if not template_tokens or event_template == "<*>":
+        event_tokens = split_template_naive(event_template)
+        if not event_tokens or event_template == "<*>":
             return False, event_template, None, None
-        if len(self.template_items) == 0 or len(template_tokens) == 1:
-            self._insert_template(event_template, indexes)
+        if len(self.template_items) == 0 or len(event_tokens) == 1:
+            self._insert_template(event_template, indexes, llm_logs)
             return False, event_template, None, None
 
-        x_t = [split_template_naive(t) for t in self.template_list]
-        coarse_similarities = [
-            jaccard_similarity(template_tokens, t) for t in x_t
-        ]
+        xyz = max(self.template_items,
+                  key=lambda x: jaccard_similarity(
+                      event_tokens,
+                      split_template_naive(x),
+                  ))
 
-        # only compare with the most similar template
-        max_sim_idx = np.argmax(coarse_similarities)
-        xyz = self.template_list[max_sim_idx]
-
-        new_template = self._judge_template_merge_combine(event_template, xyz)
+        new_template = self._judge_template_merge_combine(
+            event_template,
+            xyz,
+            llm_logs,
+            self.template_items[xyz]['llm_logs'],
+        )
         if new_template:
             print(f"[TemplateDB] Merge: `{event_template}` | `{xyz}`")
-            insert_indexes = self._update_template(new_template, indexes,
-                                                   max_sim_idx)
+            insert_indexes = self._update_template(new_template, indexes, xyz,
+                                                   llm_logs)
             print(f"[TemplateDB] Merged: -> `{new_template}`")
             return True, new_template, insert_indexes, xyz
         else:
-            self._insert_template(event_template, indexes)
+            self._insert_template(event_template, indexes, llm_logs)
             return False, event_template, None, xyz
 
-    def _judge_template_merge_combine(self, template1, template2):
+    def _judge_template_merge_combine(self, template1, template2, llm1, llm2):
         if template1 == template2:
             return template1
         import re
@@ -124,25 +124,38 @@ class TemplateDatabase:
             regex = '^' + regex + '$'
             return re.match(regex, log) is not None
 
-        if is_match(template1, template2):
+        if is_match(template1, template2) and self.tpl_llm.core(
+                template1,
+                template2,
+                llm1,
+                llm2,
+        ):
             return template1
-        if is_match(template2, template1):
+        if is_match(template2, template1) and self.tpl_llm.core(
+                template2,
+                template1,
+                llm2,
+                llm1,
+        ):
             return template2
         return None
 
-    def _insert_template(self, event_template, indexes):
-        template_tokens = split_template_naive(event_template)
+    def _insert_template(self, event_template, indexes, llm_logs):
         self.template_items[event_template] = {
             'indexes': indexes,
+            'llm_logs': llm_logs,
         }
-        self.template_list.append(event_template)
 
-    def _update_template(self, new_template, new_indexes, idx):
-        old_template = self.template_list[idx]
-        template_tokens = split_template_naive(new_template)
-
+    def _update_template(
+        self,
+        new_template,
+        new_indexes,
+        old_template,
+        llm_logs,
+    ):
         insert_indexes = self.template_items[old_template].get('indexes',
                                                                {}).copy()
+        insert_llm_logs = self.template_items[old_template].get('llm_logs')
         #print("insert_indexes: {}".format(insert_indexes))
         #print("new_indexes: {}".format(new_indexes))
         for k, v in new_indexes.items():
@@ -152,11 +165,10 @@ class TemplateDatabase:
                 insert_indexes[k] = v
         self.template_items[new_template] = {
             'indexes': insert_indexes,
+            'llm_logs': llm_logs + insert_llm_logs,
         }
         if new_template != old_template:
             self.template_items.pop(old_template)
-            self.template_list.pop(idx)
-            self.template_list.append(new_template)
         #print('#' * 20)
         #print(self.template_items)
         return insert_indexes
@@ -168,23 +180,14 @@ class TemplateDatabase:
         :param template: The log template whose indexes need to be updated.
         :param new_indexes: A dictionary of new indexes.
         """
-        # old_template = self.template_list[idx]
-        if template not in self.template_items:
-            template_tokens = split_template_naive(template)
-            self.template_items[template] = {
-                'indexes': new_indexes,
-            }
-            self.template_list.append(template)
-            return new_indexes
-        else:
-            indexes2 = self.template_items[template].get('indexes', {}).copy()
-            for k, v in new_indexes.items():
-                if k in indexes2:
-                    indexes2[k] = merge_sorted_lists(v, indexes2[k])
-                else:
-                    indexes2[k] = v
-            print(
-                f"[TemplateDB] Update Indexes: {sum(len(v) for v in self.template_items[template].get('indexes', {}).values())} -> {sum(len(v) for v in indexes2.values())} for `{template}`"
-            )
-            self.template_items[template]['indexes'] = indexes2
-            return indexes2
+        assert template in self.template_items
+        indexes2 = self.template_items[template].get('indexes', {}).copy()
+        for k, v in new_indexes.items():
+            if k in indexes2:
+                indexes2[k] = merge_sorted_lists(v, indexes2[k])
+            else:
+                indexes2[k] = v
+        print(
+            f"[TemplateDB] Update Indexes: {sum(len(v) for v in self.template_items[template].get('indexes', {}).values())} -> {sum(len(v) for v in indexes2.values())} for `{template}`"
+        )
+        self.template_items[template]['indexes'] = indexes2
