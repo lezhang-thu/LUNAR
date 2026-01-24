@@ -85,15 +85,11 @@ class BaseParser:
             update_success, update_num, updated_indexes = self.clusters.update_logs_with_map(
                 template, cluster_id)
             if update_success:
-                need_update, new_template, insert_indexes, similar_template = self.template_database.add_template(
+                need_update, new_template, insert_indexes = self.template_database.add_template(
                     template, updated_indexes, tpl2logs)
                 if need_update and validate_template(new_template):
                     update_num = self.clusters.update_logs_by_indexes(
                         new_template, cluster_id, insert_indexes)
-
-                    if similar_template in self.post2template:
-                        del self.examples[self.post2template[similar_template]]
-                        del self.post2template[similar_template]
 
                     if new_template != template:
                         _, update_num, updated_indexes = self.clusters.update_logs_with_map(
@@ -147,28 +143,11 @@ class LUNARParser(BaseParser):
             pad_query=self.cluster_params["pad_query"],
         )
 
-        self.examples = {}
-        self.post2template = {}
         self.initialize_template_database(
             self.llm_params['model'],
             self.llm_params['api_key'],
             self.llm_params['base_url'],
         )
-
-    def find_top_two_log_templates(self, logs_to_query_regex):
-        # list of tuples: (similarity, (log, template))
-        candidates = []
-
-        for template, log in self.examples.items():
-            sims = calculate_jaccard_one_to_many(log, logs_to_query_regex)
-            cluster_similarity = max(sims)
-            candidates.append((cluster_similarity, (log, template)))
-
-        # get the top 2 by similarity
-        top_two = heapq.nlargest(2, candidates, key=lambda x: x[0])
-
-        # return only the (log, template) tuples
-        return [candidate[1] for candidate in top_two if candidate[0] > 0]
 
     def parse(self, logName):
         log_path = os.path.join(
@@ -202,10 +181,6 @@ class LUNARParser(BaseParser):
                     print(x_template)
                     flag, _, new_template = self.against_tpl_database(
                         logs_to_query_regex, x_template, cluster_id)
-                    if flag:
-                        self._choose(new_template, x_template,
-                                     processed2gpt[x_template][0],
-                                     processed2gpt[x_template][1])
             # lezhang.thu - end
             if not update_success:
                 print(f"Update failed. Get a compromise response also failed.")
@@ -226,17 +201,6 @@ class LUNARParser(BaseParser):
                 }
                 self.json_inter_result.append(save_item)
         self.save_results(logName)
-
-    def _to_map(self, template, raw_format, log):
-        self.examples[raw_format] = log
-        self.post2template[template] = raw_format
-
-    def _choose(self, new_template, template, raw_format, log):
-        if new_template and new_template != template:
-            self._to_map(new_template,
-                         new_template.replace("<*>", "{variable}"), log)
-        else:
-            self._to_map(template, raw_format, log)
 
     @staticmethod
     def _build_template_log_dict(tpl, logs):
@@ -291,9 +255,6 @@ class LUNARParser(BaseParser):
 
         update_success, update_num, new_template = self.against_tpl_database(
             logs_to_query_regex, template, cluster_id)
-        if update_success:
-            self._choose(new_template, template, processed2gpt[template][0],
-                         processed2gpt[template][1])
         counter = 0
 
         # lezhang.thu@gmail.com - start
@@ -316,10 +277,6 @@ class LUNARParser(BaseParser):
                 template = llm_template
                 update_success, update_num, new_template = self.against_tpl_database(
                     logs_to_query_regex, template, cluster_id)
-                if update_success:
-                    self._choose(new_template, template,
-                                 template.replace("<*>", "{variable}"),
-                                 required_log)
             counter += 1
         # lezhang.thu@gmail.com - end
 

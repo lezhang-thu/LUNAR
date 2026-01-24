@@ -155,7 +155,6 @@ class BaseClustering:
             print(
                 "[TemplateBaseUpdate] No existing indexes to check and update")
             return 0
-        parent_id = self.update_map_child2parent[child_id]
         total, total_updated = 0, 0
         for key in all_indexes.keys():
             index = pd.Index(all_indexes[key])

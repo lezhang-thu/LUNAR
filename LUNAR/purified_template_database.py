@@ -78,40 +78,39 @@ class TemplateDatabase:
         self.tpl_llm = LLMTemplateMerger(model, api_key, base_url)
 
     def add_template(self, event_template, indexes={}, llm_logs=[]):
-        """
-        Add a new template to the database.
+        # loop invariant: event_template = pass-in UNION empty set
+        merged = False
+        while len(self.template_items) > 0:
+            event_tokens = split_template_naive(event_template)
+            xyz = max(self.template_items,
+                      key=lambda x: jaccard_similarity(
+                          event_tokens,
+                          split_template_naive(x),
+                      ))
+            new_template = self._judge_template_merge_combine(
+                event_template,
+                xyz,
+                llm_logs,
+                self.template_items[xyz]['llm_logs'],
+            )
+            if new_template is None:
+                break
+            else:
+                indexes, llm_logs = self._merge(indexes, llm_logs, xyz)
+                merged = True
+                self.template_items.pop(xyz)
+                print(f"[TemplateDB] Merge: `{event_template}` | `{xyz}`")
+                print(f"[TemplateDB] Merged: -> `{new_template}`")
+                event_template = new_template
 
-        :param event_template: The log template to be added.
-        :param indexes: A dictionary of indexes related to the template. Defaults to {}.
-        """
-        event_tokens = split_template_naive(event_template)
-        if not event_tokens or event_template == "<*>":
-            return False, event_template, None, None
-        if len(self.template_items) == 0 or len(event_tokens) == 1:
-            self._insert_template(event_template, indexes, llm_logs)
-            return False, event_template, None, None
-
-        xyz = max(self.template_items,
-                  key=lambda x: jaccard_similarity(
-                      event_tokens,
-                      split_template_naive(x),
-                  ))
-
-        new_template = self._judge_template_merge_combine(
-            event_template,
-            xyz,
-            llm_logs,
-            self.template_items[xyz]['llm_logs'],
-        )
-        if new_template:
-            print(f"[TemplateDB] Merge: `{event_template}` | `{xyz}`")
-            insert_indexes = self._update_template(new_template, indexes, xyz,
-                                                   llm_logs)
-            print(f"[TemplateDB] Merged: -> `{new_template}`")
-            return True, new_template, insert_indexes, xyz
+        self.template_items[event_template] = {
+            'indexes': indexes,
+            'llm_logs': llm_logs,
+        }
+        if merged:
+            return True, event_template, indexes
         else:
-            self._insert_template(event_template, indexes, llm_logs)
-            return False, event_template, None, xyz
+            return False, event_template, None
 
     def _judge_template_merge_combine(self, template1, template2, llm1, llm2):
         if template1 == template2:
@@ -124,54 +123,41 @@ class TemplateDatabase:
             regex = '^' + regex + '$'
             return re.match(regex, log) is not None
 
-        if is_match(template1, template2) and self.tpl_llm.core(
-                template1,
-                template2,
-                llm1,
-                llm2,
-        ):
+        if is_match(template1, template2) and (len(
+                split_template_naive(template1)) == len(
+                    split_template_naive(template2)) or self.tpl_llm.core(
+                        template1,
+                        template2,
+                        llm1,
+                        llm2,
+                    )):
             return template1
-        if is_match(template2, template1) and self.tpl_llm.core(
-                template2,
-                template1,
-                llm2,
-                llm1,
-        ):
+        if is_match(template2, template1) and (len(
+                split_template_naive(template2)) == len(
+                    split_template_naive(template1)) or self.tpl_llm.core(
+                        template2,
+                        template1,
+                        llm2,
+                        llm1,
+                    )):
             return template2
         return None
 
-    def _insert_template(self, event_template, indexes, llm_logs):
-        self.template_items[event_template] = {
-            'indexes': indexes,
-            'llm_logs': llm_logs,
-        }
-
-    def _update_template(
+    def _merge(
         self,
-        new_template,
-        new_indexes,
-        old_template,
+        indexes,
         llm_logs,
+        old_template,
     ):
-        insert_indexes = self.template_items[old_template].get('indexes',
-                                                               {}).copy()
+        insert_indexes = self.template_items[old_template].get(
+            'indexes').copy()
         insert_llm_logs = self.template_items[old_template].get('llm_logs')
-        #print("insert_indexes: {}".format(insert_indexes))
-        #print("new_indexes: {}".format(new_indexes))
-        for k, v in new_indexes.items():
+        for k, v in indexes.items():
             if k in insert_indexes:
                 insert_indexes[k] = merge_sorted_lists(v, insert_indexes[k])
             else:
                 insert_indexes[k] = v
-        self.template_items[new_template] = {
-            'indexes': insert_indexes,
-            'llm_logs': llm_logs + insert_llm_logs,
-        }
-        if new_template != old_template:
-            self.template_items.pop(old_template)
-        #print('#' * 20)
-        #print(self.template_items)
-        return insert_indexes
+        return insert_indexes, (llm_logs + insert_llm_logs)[:5]
 
     def update_indexes(self, template, new_indexes):
         """
