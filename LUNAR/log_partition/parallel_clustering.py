@@ -114,7 +114,8 @@ class BaseClustering:
             total_matched += num_berfore - num_after
             total_num_before += num_berfore
             total_num_after += num_after
-            all_indexes[bucket_id] = index.tolist()
+            if len(index) > 0:
+                all_indexes[bucket_id] = index.tolist()
         empty_bucket_num = len(
             [i for i in self.clusters.values() if len(i) != 0])
         print(
@@ -137,11 +138,9 @@ class BaseClustering:
             print(
                 "[TemplateBaseUpdate] No existing indexes to check and update")
             return 0
-        parent_id = self.update_map_child2parent[child_id]
-        bucket_ids_to_check = self.update_map_parent2child[parent_id]
         total, total_updated = 0, 0
-        for bucket_id in bucket_ids_to_check:
-            index = pd.Index(all_indexes[bucket_id])
+        for key in all_indexes.keys():
+            index = pd.Index(all_indexes[key])
             rows_to_process = self.df_logs.loc[index]
             verify_results = rows_to_process.apply(
                 lambda row: verify_template_for_log_with_first_token(
@@ -152,7 +151,7 @@ class BaseClustering:
             total_updated += len(index_to_update)
             total += len(index)
         print(
-            f"[TemplateBaseUpdate] Update previous logs with merged template, succeed/all: {total_updated}/{total}, in child Bucket {bucket_ids_to_check}"
+            f"[TemplateBaseUpdate] Update previous logs with merged template, succeed/all: {total_updated}/{total}"
         )
         return total_updated
 
@@ -185,7 +184,6 @@ class BaseClustering:
             print("len(candidate_logs): {}".format(len(candidate_logs)))
             cluster_id = current_logs_bucket["cid2"].iloc[0]
             return cluster_id, get_diverse_anchors(candidate_logs, 5)
-            #return cluster_id, randomly_select(candidate_logs, 5)
 
 
 class TopKTokenClustering(BaseClustering):
@@ -381,44 +379,6 @@ def remove_duplicates(lst):
     return result
 
 
-def least_similar(candidate_logs, n_anchors=5):
-    if len(candidate_logs) <= 1:
-        return candidate_logs
-
-    n = len(candidate_logs)
-    anchors = [candidate_logs[0]]
-    selected_indices = {0}
-
-    # initialize min_sims with similarity to the first anchor
-    min_sims = calculate_jaccard_one_to_many(candidate_logs[0], candidate_logs)
-    min_sims[0] = math.inf  # prevent re-selecting anchor 0
-
-    def random_argmin(values):
-        min_val = min(values)
-        candidates = [i for i, v in enumerate(values) if v == min_val]
-        return random.choice(candidates)
-
-    for _ in range(1, min(n_anchors, n)):
-        # find least similar log (lowest min similarity)
-        #next_idx = min(range(n), key=lambda i: min_sims[i])
-        next_idx = random_argmin(min_sims)
-        anchors.append(candidate_logs[next_idx])
-        selected_indices.add(next_idx)
-
-        # compute similarity to the new anchor
-        sims_new = calculate_jaccard_one_to_many(candidate_logs[next_idx],
-                                                 candidate_logs)
-
-        # update min similarities
-        for i in range(n):
-            if i in selected_indices:
-                min_sims[i] = math.inf
-            else:
-                min_sims[i] = min(min_sims[i], sims_new[i])
-
-    return anchors
-
-
 def get_diverse_anchors(candidate_logs, n_anchors=5):
     """
     Selects n_anchors from candidate_logs that are least similar to each other
@@ -502,7 +462,3 @@ def get_diverse_anchors(candidate_logs, n_anchors=5):
 
     # Map selected indices back to original strings
     return [candidate_logs[i] for i in anchor_indices]
-
-
-def randomly_select(candidate_logs, k=5):
-    return random.sample(candidate_logs, min(k, len(candidate_logs)))

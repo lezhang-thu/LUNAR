@@ -2,19 +2,18 @@ import os
 import re
 import heapq
 import time
+import threading
+
+lock = threading.Lock()
 import pandas as pd
-import multiprocessing
-from multiprocessing import Pool
-from functools import partial
-from typing import List, Dict, Any
 
 from LUNAR.llm_module.model import InferLLMGrouping
 from LUNAR.llm_module.post_process import post_process_template
 from LUNAR.log_partition.parallel_clustering import TopKTokenClustering
-from LUNAR.log_partition.text_distance import calculate_jaccard_one_to_many
 from LUNAR.utils import validate_template
 from LUNAR.utils import preprocess_log_for_query
 from LUNAR.purified_template_database import TemplateDatabase
+from LUNAR.LUNAR import LUNARParser
 
 
 class BaseParser:
@@ -39,7 +38,7 @@ class BaseParser:
         self.max_retry = 2
         self.llm_params = llm_params
         self.cluster_params = cluster_params
-        self.template_database = {}
+        self.template_database = None
 
     def parse(self, logName):
         raise NotImplementedError
@@ -48,7 +47,7 @@ class BaseParser:
         to_path_logs = os.path.join(
             self.dir_out, f"{log_name}_{self.data_type}.log_structured.csv")
         df_to_save = self.clusters.prepare_save_df(self.gt_parsed)
-        #df_to_save.to_csv(to_path_logs, index=False)
+        df_to_save.to_csv(to_path_logs, index=False)
         print(f"Saved {log_name}_log_structured.csv to {to_path_logs}")
 
         to_path_templates = os.path.join(
@@ -60,40 +59,37 @@ class BaseParser:
         df_selected_sorted = df_templates.sort_values(by='EventId_numeric')
         df_selected_sorted = df_selected_sorted.drop('EventId_numeric', axis=1)
 
-        #df_selected_sorted.to_csv(to_path_templates, index=False)
+        df_selected_sorted.to_csv(to_path_templates, index=False)
         print(f"Saved {log_name}_log_templates.csv to {to_path_templates}")
         self.gpt_parsed = df_to_save
 
-    def validate_and_update_with_cluster_map_template_database(
-            self, logs_to_query, template, cluster_id):
+    def against_tpl_database(self, logs_to_query, template, cluster_id):
+        # lezhang.thu - start
+        tpl2logs = LUNARParser._build_template_log_dict(
+            template, logs_to_query)
+        # lezhang.thu - end
         update_success, update_num = False, 0
         new_template = None
         if validate_template(template):
             update_success, update_num, updated_indexes = self.clusters.update_logs_with_map(
                 template, cluster_id)
             if update_success:
-                parent_cluster_id = self.clusters.update_map_child2parent[
-                    cluster_id]
-                need_update, new_template, insert_indexes, similar_template = self.template_database[
-                    parent_cluster_id].add_template(template, updated_indexes)
-                if need_update and validate_template(new_template):
-                    update_num = self.clusters.update_logs_by_indexes(
-                        new_template, cluster_id, insert_indexes)
+                with lock:  # acquire lock
+                    need_update, new_template, insert_indexes = self.template_database.add_template(
+                        template, updated_indexes, tpl2logs)
+                    if need_update and validate_template(new_template):
+                        update_num = self.clusters.update_logs_by_indexes(
+                            new_template, cluster_id, insert_indexes)
 
-                    if similar_template in self.post2template:
-                        del self.examples[self.post2template[similar_template]]
-                        del self.post2template[similar_template]
-
-                    if new_template != template:
-                        _, update_num, updated_indexes = self.clusters.update_logs_with_map(
-                            new_template, cluster_id)
-                        self.template_database[
-                            parent_cluster_id].update_indexes(
+                        if new_template != template:
+                            _, update_num, updated_indexes = self.clusters.update_logs_with_map(
+                                new_template, cluster_id)
+                            self.template_database.update_indexes(
                                 new_template, updated_indexes)
-                        print(
-                            f"[TemplateBaseUpdate] Match unparsed logs {update_num} with new template `{new_template}`"
-                        )
-                print(f"Update Success: template `{template}`")
+                            print(
+                                f"[TemplateBaseUpdate] Match unparsed logs {update_num} with new template `{new_template}`"
+                            )
+                    print(f"Update Success: template `{template}`")
             else:
                 print(
                     f"Update failed: Template can not match logs `{template}`. Retry query"
@@ -134,8 +130,11 @@ class LUNARParserParallel(BaseParser):
             pad_query=self.cluster_params["pad_query"],
         )
 
-        self.examples = {}
-        self.post2template = {}
+        self.initialize_template_database(
+            self.llm_params['model'],
+            self.llm_params['api_key'],
+            self.llm_params['base_url'],
+        )
 
     def init_cluster(self, logName):
         log_path = os.path.join(
@@ -145,7 +144,6 @@ class LUNARParserParallel(BaseParser):
         self.clusters.load_data(self.gt_parsed, log_path)
         time_start_after_load = time.time()
         logs_grouped = self.clusters.clustering()
-        self.initialize_template_database()
         return time_start_after_load
 
     def parse(self, hyperbucket_ID):
@@ -156,43 +154,28 @@ class LUNARParserParallel(BaseParser):
         if not update_success:
             print("Update failed. Try to get a compromise response")
             template = self.llm.get_compromise_response(logs_to_query_regex)
-            update_success, _, _ = self.validate_and_update_with_cluster_map_template_database(
+            update_success, _, _ = self.against_tpl_database(
                 logs_to_query_regex, template, cluster_id)
         # lezhang.thu - start
         if update_success and len(all_templates) > 0:
-        #if False:
+            #if False:
             print(
                 "A good starting point. Try to use the remaining templates...")
             for x_template in all_templates:
                 print(x_template)
-                flag, _, new_template = self.validate_and_update_with_cluster_map_template_database(
+                flag, _, new_template = self.against_tpl_database(
                     logs_to_query_regex, x_template, cluster_id)
-                if flag:
-                    self._choose(new_template, x_template,
-                                 processed2gpt[x_template][0],
-                                 processed2gpt[x_template][1])
         # lezhang.thu - end
         if not update_success:
             print(f"Update failed. Get a compromise response also failed.")
-            self.validate_and_update_with_cluster_map_template_database(
-                logs_to_query_regex, logs_to_query_regex[0], cluster_id)
+            self.against_tpl_database(logs_to_query_regex,
+                                      logs_to_query_regex[0], cluster_id)
         print(
             "========================================================================================\n\n"
         )
 
     def non_empty(self, hyperbucket_ID):
         return self.clusters.non_empty(hyperbucket_ID)
-
-    def _to_map(self, template, raw_format, log):
-        self.examples[raw_format] = log
-        self.post2template[template] = raw_format
-
-    def _choose(self, new_template, template, raw_format, log):
-        if new_template and new_template != template:
-            self._to_map(new_template,
-                         new_template.replace("<*>", "{variable}"), log)
-        else:
-            self._to_map(template, raw_format, log)
 
     def parse_one_iter(self, hyperbucket_ID):
         cluster_id, logs_to_query_regex = self.clusters.sample_hyperbucket(
@@ -214,11 +197,8 @@ class LUNARParserParallel(BaseParser):
         )
         print("\t============ Aggregate ====================")
         print("\tAggregated Template: ", template)
-        update_success, _, new_template = self.validate_and_update_with_cluster_map_template_database(
+        update_success, _, new_template = self.against_tpl_database(
             logs_to_query_regex, template, cluster_id)
-        if update_success:
-            self._choose(new_template, template, processed2gpt[template][0],
-                         processed2gpt[template][1])
         counter = 0
 
         # lezhang.thu@gmail.com - start
@@ -239,20 +219,13 @@ class LUNARParserParallel(BaseParser):
             if correct:
                 print("llm_template:\n{}".format(llm_template))
                 template = llm_template
-                update_success, _, new_template = self.validate_and_update_with_cluster_map_template_database(
+                update_success, _, new_template = self.against_tpl_database(
                     logs_to_query_regex, template, cluster_id)
-                if update_success:
-                    self._choose(new_template, template,
-                                 template.replace("<*>", "{variable}"),
-                                 required_log)
             counter += 1
         # lezhang.thu@gmail.com - end
 
         t = set() if counter > 0 else set(all_templates) - set([template])
         return update_success, logs_to_query_regex, cluster_id, t, processed2gpt
 
-    def initialize_template_database(self):
-        for k, _df in self.clusters.clusters.items():
-            cid = _df["cid1"].iloc[0]
-            if cid not in self.template_database:
-                self.template_database[cid] = TemplateDatabase()
+    def initialize_template_database(self, model, api_key, base_url):
+        self.template_database = TemplateDatabase(model, api_key, base_url)
