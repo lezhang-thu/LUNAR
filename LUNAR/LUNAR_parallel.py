@@ -13,7 +13,6 @@ from LUNAR.log_partition.parallel_clustering import TopKTokenClustering
 from LUNAR.utils import validate_template
 from LUNAR.utils import preprocess_log_for_query
 from LUNAR.purified_template_database import TemplateDatabase
-from LUNAR.LUNAR import LUNARParser
 
 
 class BaseParser:
@@ -65,7 +64,7 @@ class BaseParser:
 
     def against_tpl_database(self, logs_to_query, template, cluster_id):
         # lezhang.thu - start
-        tpl2logs = LUNARParser._build_template_log_dict(
+        tpl2logs = LUNARParserParallel._build_template_log_dict(
             template, logs_to_query)
         # lezhang.thu - end
         update_success, update_num = False, 0
@@ -176,6 +175,22 @@ class LUNARParserParallel(BaseParser):
 
     def non_empty(self, hyperbucket_ID):
         return self.clusters.non_empty(hyperbucket_ID)
+
+    @staticmethod
+    def _build_template_log_dict(tpl, logs):
+        logs = set(logs)
+        # Precompile regex patterns for templates
+        regex = re.escape(tpl).replace(r'<\*>', '.*?')
+        regex = '^' + regex + '$'
+        compiled = re.compile(regex)
+
+        result = []
+        # Match logs to templates
+        for log in logs:
+            if compiled.match(log):
+                result.append(log)
+
+        return result
 
     def parse_one_iter(self, hyperbucket_ID):
         cluster_id, logs_to_query_regex = self.clusters.sample_hyperbucket(

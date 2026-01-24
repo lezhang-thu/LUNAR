@@ -23,5 +23,5 @@ for run in 0; do
 	done
 
 	# Rename the output directory after the run
-	mv "${base_output_dir}" "${base_output_dir}-${run}"
+	#mv "${base_output_dir}" "${base_output_dir}-${run}"
 done
