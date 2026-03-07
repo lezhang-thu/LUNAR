@@ -25,7 +25,6 @@ class InferLLMGrouping:
         self.module_params = {}
         self.messages = []
         self.usages = []
-        self.response = ""
 
         self.system_prompt = (
             "You are the Cloud Reliability team's Log Parsing Assistant.")
@@ -170,7 +169,7 @@ class InferLLMGrouping:
                                                  proposal=proposal)
 
         time1 = time.time()
-        _ = self.get_response_fallback(messages)
+        response = self.get_response_fallback(messages)
         query_time = time.time() - time1
 
         # print query
@@ -178,7 +177,7 @@ class InferLLMGrouping:
         print("\n".join(["\t" + i for i in query.split('\n')]))
         # print response
         print("\t============ Response ====================")
-        print(self.response)
+        print(response)
         if len(gts) > 0:
             print("\t============ Target ====================")
             answer_template = '\n'.join(
@@ -188,7 +187,7 @@ class InferLLMGrouping:
 
         # post process response
         try:
-            gpt_templates = self.extract_and_post_process(logs, self.response)
+            gpt_templates = self.extract_and_post_process(logs, response)
             templates = [temp['post_process'] for temp in gpt_templates]
         except:
             templates = [post_process_template(log, [])[0] for log in logs]
@@ -366,11 +365,11 @@ class InferLLMGrouping:
             query += '\n{}'.format(msg)
         # lezhang.thu - end
         messages.append({"role": "user", "content": query})
-        _ = self.get_response_fallback(messages)
+        response = self.get_response_fallback(messages)
         print('#' * 30)
         print('Improving...')
-        print(self.response)
-        t = re.search(r"ImprovedTemplate:\s*`([^`]*)`", self.response)
+        print(response)
+        t = re.search(r"ImprovedTemplate:\s*`([^`]*)`", response)
         if t is None: return ''
         else: return t.group(1)
 
@@ -383,8 +382,7 @@ class InferLLMGrouping:
                     messages=messages,
                     temperature=0,
                 )
-                self.response = response.choices[0].message.content
-                return self.response
+                return response.choices[0].message.content
 
             except Exception as e:
                 print("Exception :", e)
